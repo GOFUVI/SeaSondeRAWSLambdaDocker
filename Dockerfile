@@ -1,6 +1,6 @@
 
 FROM public.ecr.aws/lambda/provided:al2
-LABEL Name=readcsdocker Version=0.0.1
+LABEL Name=seasonder_aws Version=0.0.1
 
 
 COPY --from=amazon/aws-cli:latest /usr/local/aws-cli/ /usr/local/aws-cli/
@@ -9,7 +9,7 @@ RUN ln -s /usr/local/aws-cli/v2/current/bin/aws \
     ln -s /usr/local/aws-cli/v2/current/bin/aws_completer \
         /usr/local/bin/aws_completer
 
-ENV R_VERSION=4.4.0
+ENV R_VERSION=4.4.3
 
 
 RUN yum -y install wget git tar
@@ -30,7 +30,10 @@ RUN yum -y install udunits2-devel
 
 RUN Rscript -e "install.packages(c('httr', 'jsonlite', 'logger', 'remotes','R.utils'), repos = 'https://packagemanager.rstudio.com/all/__linux__/centos7/latest')"
 RUN Rscript -e "remotes::install_github('mdneuzerling/lambdr')"
-RUN Rscript -e "remotes::install_github('GOFUVI/SeaSondeR')"
+
+COPY SeaSondeR.tar.gz /SeaSondeR.tar.gz
+
+RUN R -e "remotes::install_local('SeaSondeR.tar.gz')"
 
 RUN mkdir /lambda
 COPY runtime.R /lambda
@@ -40,33 +43,41 @@ RUN chmod 755 -R /lambda
 
 ##### First Order Region Options ####
 
-ENV SEASONDER_NSM = "2"
+ENV SEASONDER_NSM=2
 
-ENV SEASONDER_FDOWN = "10"
+ENV SEASONDER_FDOWN=10
 
-ENV SEASONDER_FLIM = "100"
+ENV SEASONDER_FLIM=100
 
-ENV SEASONDER_NOISEFACT = "3.981072"
+ENV SEASONDER_NOISEFACT=3.981072
 
-ENV SEASONDER_CURRMAX = "2"
+ENV SEASONDER_CURRMAX=2
 
-ENV SEASONDER_REJECT_DISTANT_BRAGG = "TRUE"
+ENV SEASONDER_REJECT_DISTANT_BRAGG=TRUE
 
-ENV SEASONDER_REJECT_NOISE_IONOSPHERIC = "TRUE" 
+ENV SEASONDER_REJECT_NOISE_IONOSPHERIC=TRUE 
 
-ENV SEASONDER_REJECT_NOISE_IONOSPHERIC_THRESHOLD = "0"
+ENV SEASONDER_REJECT_NOISE_IONOSPHERIC_THRESHOLD=0
+
+ENV SEASONDER_COMPUTE_FOR=TRUE
 
 ##### MUSIC OPTIONS #####
 
-ENV SEASONDER_DOPPLER_INTERPOLATION = "2"
+ENV SEASONDER_DOPPLER_INTERPOLATION=2
 
-ENV SEASONDER_PPMIN = "5"
+ENV SEASONDER_PPMIN=5
 
-ENV SEASONDER_PWMAX = "50"
+ENV SEASONDER_PWMAX=50
+
+ENV SEASONDER_SMOOTH_NOISE_LEVEL=TRUE
+
+ENV SEASONDER_MUSIC_PARAMETERS=40,20,2,20
+
+ENV SEASONSER_DISCARD=no_solution,low_SNR
 
 ##### S3 Path #####
 
-ENV SEASONDER_S3_OUTPUT_PATH = ""
+ENV SEASONDER_S3_OUTPUT_PATH=""
 
 
 RUN printf '#!/bin/sh\ncd /lambda\nRscript runtime.R' > /var/runtime/bootstrap \

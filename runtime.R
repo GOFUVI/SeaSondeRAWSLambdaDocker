@@ -65,20 +65,56 @@ process_task <- function(task_index,taskIds,s3Keys,s3BucketArns){
                     reject_noise_ionospheric_threshold = as.numeric(Sys.getenv("SEASONDER_REJECT_NOISE_IONOSPHERIC_THRESHOLD"))
       )
     
+cs <- SeaSondeR::seasonder_setFOR_parameters(cs, FOS)
+    if(as.logical(Sys.getenv("SEASONDER_COMPUTE_FOR"))){
+      cs <- SeaSondeR::seasonder_computeFORs(cs, method = "SeaSonde")
+    }
 
-    
-    cs <- SeaSondeR::seasonder_computeFORs(cs, method = "SeaSonde", FOR_control = FOS)
-  
-
-    cs <- SeaSondeR::seasonder_runMUSIC_in_FOR(cs, 
-    doppler_interpolation = as.integer(Sys.getenv("SEASONDER_DOPPLER_INTERPOLATION")),
-    options = list(PPMIN = as.numeric(Sys.getenv("SEASONDER_PPMIN")), PWMAX = as.numeric(Sys.getenv("SEASONDER_PWMAX")))
+      MUSIC_options <- list(
+        PPMIN = as.numeric(Sys.getenv("SEASONDER_PPMIN")), 
+        PWMAX = as.numeric(Sys.getenv("SEASONDER_PWMAX")), 
+        smoothNoiseLevel = as.logical(Sys.getenv("SEASONDER_SMOOTH_NOISE_LEVEL")),
+        discard = Sys.getenv("SEASONSER_DISCARD"),
+        doppler_interpolation = as.integer(Sys.getenv("SEASONDER_DOPPLER_INTERPOLATION")),
+        MUSIC_parameters = as.integer(Sys.getenv("SEASONDER_MUSIC_PARAMETERS"))
     )
+    
+
+cs <- SeaSondeR::seasonder_setSeaSondeRCS_MUSIC_options(cs, MUSIC_options)
+  cs <- SeaSondeR::seasonder_runMUSIC_in_FOR(cs)
+    
+  
+   
+    radial_metrics <- SeaSondeR::seasonder_exportLLUVRadialMetrics(seasonder_cs_obj, rm_file)
+
     
     # Save to AWS
     
     s3_path <- Sys.getenv("SEASONDER_S3_OUTPUT_PATH")
    
+  # Radial Metrics
+
+    outfile_name <- paste0(basename(tools::file_path_sans_ext(file_to_read)),".ruv")
+    
+    outfile <- file.path(temp_output_files_dir,outfile_name)
+
+    radial_metrics <- SeaSondeR::seasonder_exportLLUVRadialMetrics(cs, outfile)
+
+outfile <- R.utils::gzip(outfile,overwrite = TRUE)
+    outfile_name <- basename(outfile)
+    
+    s3_destination <- paste0("s3://",bucket,"/",s3_path,"/Radial_Metrics/")
+    radial_metrics_s3_path <- paste0(s3_destination,outfile_name)
+    command <- paste("s3","cp --only-show-errors",outfile,s3_destination)
+
+    x <- system2("aws", command,stdout =  file.path(temp_dir,"sys.log"), stderr = file.path(temp_dir,"sys.log"), wait = TRUE)
+    
+    
+    
+    x == 0 || stop(paste0("Error while writing to S3. Reason: ",readLines("/tmp/runtime/sys.log")))
+    
+    file.remove(outfile)
+
     # CS object
     
     outfile_name <- paste0(basename(tools::file_path_sans_ext(file_to_read)),".RData")
@@ -86,7 +122,7 @@ process_task <- function(task_index,taskIds,s3Keys,s3BucketArns){
     outfile <- file.path(temp_output_files_dir,outfile_name)
     
     
-    save(cs, file = outfile)
+    save(cs, radial_metrics, file = outfile)
     
     outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     outfile_name <- basename(outfile)
@@ -103,28 +139,7 @@ process_task <- function(task_index,taskIds,s3Keys,s3BucketArns){
     
     file.remove(outfile)
    
-   # Radial Metrics
-
-    outfile_name <- paste0(basename(tools::file_path_sans_ext(file_to_read)),".ruv")
-    
-    outfile <- file.path(temp_output_files_dir,outfile_name)
-
-    seasonder_exportLLUVRadialMetrics(cs, outfile)
-
-outfile <- R.utils::gzip(outfile,overwrite = TRUE)
-    outfile_name <- basename(outfile)
-    
-    s3_destination <- paste0("s3://",bucket,"/",s3_path,"/Radial_Metrics/")
-    radial_metrics_s3_path <- paste0(s3_destination,outfile_name)
-    command <- paste("s3","cp --only-show-errors",outfile,s3_destination)
-
-    x <- system2("aws", command,stdout =  file.path(temp_dir,"sys.log"), stderr = file.path(temp_dir,"sys.log"), wait = TRUE)
-    
-    
-    
-    x == 0 || stop(paste0("Error while writing to S3. Reason: ",readLines("/tmp/runtime/sys.log")))
-    
-    file.remove(outfile)
+ 
 
     output <- 
       list(input_file = s3Key,                  

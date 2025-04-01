@@ -16,9 +16,25 @@ process_task <- function(task_index,taskIds,s3Keys,s3BucketArns){
   
 
 
-  command <- paste("s3","cp --only-show-errors",paste0("s3://",bucket,"/",s3Key),temp_input_files_dir)
+  
   
   out <- tryCatch({
+pattern_s3_path <- Sys.getenv("SEASONDER_PATTERN_PATH")
+if(pattern_s3_path == ""){
+  stop("Pattern S3 path not set.")
+}
+
+command <- paste("s3","cp --only-show-errors",paste0(pattern_s3_path),temp_input_files_dir)
+    
+    x <- system2("aws", command,stdout =  file.path(temp_dir,"sys.log"), stderr = file.path(temp_dir,"sys.log"), wait = TRUE)
+    
+    
+    
+    x == 0 || stop(paste0("Error while reading from S3. Reason: ",readLines("/tmp/runtime/sys.log")))
+
+pattern_file <- file.path(temp_input_files_dir,basename(pattern_s3_path))
+
+    command <- paste("s3","cp --only-show-errors",paste0("s3://",bucket,"/",s3Key),temp_input_files_dir)
     
     x <- system2("aws", command,stdout =  file.path(temp_dir,"sys.log"), stderr = file.path(temp_dir,"sys.log"), wait = TRUE)
     
@@ -42,15 +58,19 @@ process_task <- function(task_index,taskIds,s3Keys,s3BucketArns){
     if(file.info(file_to_read)$size == 0){
       stop(paste0("File: '",s3Key,"' has size 0."))
     } 
+
     SeaSondeR::seasonder_disableMessages()
     
 
     
-    seasonder_apm_obj <- SeaSondeR::seasonder_readSeaSondeRAPMFile("MeasPattern.txt")
+    seasonder_apm_obj <- SeaSondeR::seasonder_readSeaSondeRAPMFile(pattern_file)
     
+    cat("Pattern file read\n")
 
     cs <- SeaSondeR::seasonder_createSeaSondeRCS(file_to_read, seasonder_apm_object = seasonder_apm_obj)                              
     
+cat("CS object created\n")
+
     file.remove(file_to_read)
     
     
@@ -69,7 +89,7 @@ cs <- SeaSondeR::seasonder_setFOR_parameters(cs, FOS)
     if(as.logical(Sys.getenv("SEASONDER_COMPUTE_FOR"))){
       cs <- SeaSondeR::seasonder_computeFORs(cs, method = "SeaSonde")
     }
-
+cat("FORs computed\n")
       MUSIC_options <- list(
         PPMIN = as.numeric(Sys.getenv("SEASONDER_PPMIN")), 
         PWMAX = as.numeric(Sys.getenv("SEASONDER_PWMAX")), 
@@ -83,11 +103,9 @@ cs <- SeaSondeR::seasonder_setFOR_parameters(cs, FOS)
 cs <- SeaSondeR::seasonder_setSeaSondeRCS_MUSIC_options(cs, MUSIC_options)
   cs <- SeaSondeR::seasonder_runMUSIC_in_FOR(cs)
     
-  
+  cat("MUSIC computed\n")
    
-    radial_metrics <- SeaSondeR::seasonder_exportLLUVRadialMetrics(seasonder_cs_obj, rm_file)
-
-    
+   
     # Save to AWS
     
     s3_path <- Sys.getenv("SEASONDER_S3_OUTPUT_PATH")
@@ -99,6 +117,10 @@ cs <- SeaSondeR::seasonder_setSeaSondeRCS_MUSIC_options(cs, MUSIC_options)
     outfile <- file.path(temp_output_files_dir,outfile_name)
 
     radial_metrics <- SeaSondeR::seasonder_exportLLUVRadialMetrics(cs, outfile)
+
+
+
+  cat("Radial metrics computed\n")  
 
 outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     outfile_name <- basename(outfile)

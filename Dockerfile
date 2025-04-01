@@ -40,8 +40,9 @@ COPY runtime.R /lambda
 RUN chmod 755 -R /lambda
 
 
-
 #### Script ENV ####
+
+ENV SEASONDER_PATTERN_PATH=""
 
 ##### First Order Region Options ####
 

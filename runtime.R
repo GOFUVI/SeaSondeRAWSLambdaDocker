@@ -24,7 +24,7 @@ if(pattern_s3_path == ""){
   stop("Pattern S3 path not set.")
 }
 
-command <- paste("s3","cp --only-show-errors",paste0(pattern_s3_path),temp_input_files_dir)
+command <- paste("s3","cp --only-show-errors",pattern_s3_path,temp_input_files_dir)
     
     x <- system2("aws", command,stdout =  file.path(temp_dir,"sys.log"), stderr = file.path(temp_dir,"sys.log"), wait = TRUE)
     
@@ -125,7 +125,7 @@ cs <- SeaSondeR::seasonder_setSeaSondeRCS_MUSIC_options(cs, MUSIC_options)
 outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     outfile_name <- basename(outfile)
     
-    s3_destination <- paste0("s3://",bucket,"/",s3_path,"/Radial_Metrics/")
+    s3_destination <- paste0(s3_path,"/Radial_Metrics/")
     radial_metrics_s3_path <- paste0(s3_destination,outfile_name)
     command <- paste("s3","cp --only-show-errors",outfile,s3_destination)
 
@@ -149,7 +149,7 @@ outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     outfile_name <- basename(outfile)
     
-    s3_destination <- paste0("s3://",bucket,"/",s3_path,"/CS_Objects/")
+    s3_destination <- paste0(s3_path,"/CS_Objects/")
     cs_object_s3_path <- paste0(s3_destination,outfile_name)
     command <- paste("s3","cp --only-show-errors",outfile,s3_destination)
 

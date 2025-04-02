@@ -346,10 +346,11 @@ done
 # ----- Invoke the Lambda function for testing (only if TEST_S3_KEY is provided) -----
 if [ -n "$TEST_S3_KEY" ]; then
     BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
+    KEY_PATH=$(echo "$TEST_S3_KEY" | cut -d'/' -f4-)
     echo "Invoking Lambda function for testing..." >> "$LOGFILE" 2>&1
     run_aws lambda invoke \
       --function-name "$LAMBDA_FUNCTION" \
-      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"YXNkbGZqYWRmaiBhc2RmdW9hZHNmZGpmaGFzbGtkaGZza2RmaAo\", \"job\": {\"id\": \"f3cc4f60-61f6-4a2b-8a21-d07600c373ce\"}, \"tasks\": [{\"taskId\": \"dGFza2lkZ29lc2hlcmUF\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${TEST_S3_KEY}\", \"s3VersionId\": \"1\"}]}" \
+      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"YXNkbGZqYWRmaiBhc2RmdW9hZHNmZGpmaGFzbGtkaGZza2RmaAo\", \"job\": {\"id\": \"f3cc4f60-61f6-4a2b-8a21-d07600c373ce\"}, \"tasks\": [{\"taskId\": \"dGFza2lkZ29lc2hlcmUF\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${KEY_PATH}\", \"s3VersionId\": \"1\"}]}" \
       response.json \
       --cli-binary-format raw-in-base64-out \
       --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1

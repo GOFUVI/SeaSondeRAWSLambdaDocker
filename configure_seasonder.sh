@@ -29,12 +29,9 @@
 # ----------------------------------------------------------------------------
 
 user_options=()
-LOGFILE="/Users/jherrera/Desktop/SeaSondeRAWSLambdaDocker/aws_commands.log"
-echo "" > "$LOGFILE"  # Sobreescribe el fichero de logs en cada ejecución
 
 # Añadir función para loggear los comandos aws ejecutados
 run_aws() {
-    echo "Executing: aws $*" >> "$LOGFILE" 2>&1
     aws "$@"
 }
 
@@ -228,53 +225,53 @@ cat > lambda.json <<EOF
 EOF
 
 # ----- Create IAM role for Lambda -----
-if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
-    echo "IAM role $ROLE_NAME already exists, skipping creation." >> "$LOGFILE" 2>&1
+if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE"; then
+    echo "IAM role $ROLE_NAME already exists, skipping creation."
 else
-    echo "Creating IAM role..." >> "$LOGFILE" 2>&1
+    echo "Creating IAM role..."
     run_aws iam create-role \
       --role-name "$ROLE_NAME" \
       --assume-role-policy-document file://lambda-policy.json \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
 
-    echo "Updating IAM role trust relationship..." >> "$LOGFILE" 2>&1
+    echo "Updating IAM role trust relationship..."
     run_aws iam update-assume-role-policy \
       --role-name "$ROLE_NAME" \
       --policy-document file://lambda-policy.json \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
     sleep 30
 fi
 
 # ----- Create policy and attach it to the role -----
-EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text 2>&1)
+EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
 if [ -n "$EXISTING_POLICY_ARN" ]; then
-    echo "IAM policy $POLICY_NAME already exists, skipping creation." >> "$LOGFILE" 2>&1
+    echo "IAM policy $POLICY_NAME already exists, skipping creation."
 else
-    echo "Creating IAM policy..." >> "$LOGFILE" 2>&1
+    echo "Creating IAM policy..."
     POLICY_ARN=$(run_aws iam create-policy \
       --policy-name "$POLICY_NAME" \
       --policy-document file://lambda.json \
-      --profile "$AWS_PROFILE" 2>&1 | jq -r '.Policy.Arn')
-    echo "Attaching policy to the role..." >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
+    echo "Attaching policy to the role..."
     run_aws iam attach-role-policy \
       --role-name "$ROLE_NAME" \
       --policy-arn "$POLICY_ARN" \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
 fi
 
 # ----- Create ECR repository (if not exists) -----
-if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
-    echo "ECR repository $ECR_REPO already exists, skipping creation." >> "$LOGFILE" 2>&1
+if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE"; then
+    echo "ECR repository $ECR_REPO already exists, skipping creation."
 else
-    echo "Creating ECR repository..." >> "$LOGFILE" 2>&1
+    echo "Creating ECR repository..."
     run_aws ecr create-repository \
       --repository-name "$ECR_REPO" \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
 fi
 
 # ----- Log in to ECR -----
 
-echo "Logging in to ECR..." >> "$LOGFILE" 2>&1
+echo "Logging in to ECR..."
 PASSWORD=$(run_aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION")
 echo "$PASSWORD" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
@@ -290,24 +287,24 @@ docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
 # ----- Create or update the Lambda function -----
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
-if run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
-    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..." >> "$LOGFILE" 2>&1
+if run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE"; then
+    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
     run_aws lambda update-function-code \
       --function-name "$LAMBDA_FUNCTION" \
       --image-uri "$IMAGE_URI" \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
 else
-    echo "Creating Lambda function with image URI: $IMAGE_URI" >> "$LOGFILE" 2>&1
+    echo "Creating Lambda function with image URI: $IMAGE_URI"
     run_aws lambda create-function \
         --function-name "$LAMBDA_FUNCTION" \
         --package-type Image \
         --code ImageUri="$IMAGE_URI" \
         --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
-        --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+        --profile "$AWS_PROFILE"
 fi
 
 # ----- Update Lambda function configuration (optional) -----
-echo "Updating Lambda function configuration..." >> "$LOGFILE" 2>&1
+echo "Updating Lambda function configuration..."
 MAX_RETRIES=5
 RETRY_COUNT=0
 until run_aws lambda update-function-configuration \
@@ -333,13 +330,13 @@ until run_aws lambda update-function-configuration \
     \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
     \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\"
   }}" \
-  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; do
+  --profile "$AWS_PROFILE"; do
     RETRY_COUNT=$((RETRY_COUNT+1))
     if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
-      echo "Max retries reached. Update function configuration failed." >> "$LOGFILE" 2>&1
+      echo "Max retries reached. Update function configuration failed."
       exit 1
     fi
-    echo "Update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..." >> "$LOGFILE" 2>&1
+    echo "Update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..."
     sleep 10
 done
 
@@ -347,13 +344,13 @@ done
 if [ -n "$TEST_S3_KEY" ]; then
     BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
     KEY_PATH=$(echo "$TEST_S3_KEY" | cut -d'/' -f4-)
-    echo "Invoking Lambda function for testing..." >> "$LOGFILE" 2>&1
+    echo "Invoking Lambda function for testing..."
     run_aws lambda invoke \
       --function-name "$LAMBDA_FUNCTION" \
       --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"YXNkbGZqYWRmaiBhc2RmdW9hZHNmZGpmaGFzbGtkaGZza2RmaAo\", \"job\": {\"id\": \"f3cc4f60-61f6-4a2b-8a21-d07600c373ce\"}, \"tasks\": [{\"taskId\": \"dGFza2lkZ29lc2hlcmUF\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${KEY_PATH}\", \"s3VersionId\": \"1\"}]}" \
       response.json \
       --cli-binary-format raw-in-base64-out \
-      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+      --profile "$AWS_PROFILE"
 fi
 
 echo "Script completed. Check response.json for the invocation result."

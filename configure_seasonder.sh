@@ -28,11 +28,17 @@
 #   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key -g us-east-1 -t 120 -m 1024 -u arn:aws:s3:::my-custom-bucket/*
 # ----------------------------------------------------------------------------
 
+LOG_FILE="aws_commands.log"
+rm -f "$LOG_FILE"  # Sobreescribe el log de cada ejecución
+
 user_options=()
 
 # Añadir función para loggear los comandos aws ejecutados
 run_aws() {
-    aws "$@"
+    echo "Running: aws $*" >> "$LOG_FILE"  # log to file only
+    output=$(aws "$@" 2>&1)
+    echo "$output" >> "$LOG_FILE"
+    echo "$output"
 }
 
 # Replace OPTIONS array with hard-coded default values (plus missing ENVs)
@@ -305,6 +311,23 @@ fi
 
 # ----- Update Lambda function configuration (optional) -----
 echo "Updating Lambda function configuration..."
+# Agregar bucle de espera para asegurar que no haya actualizaciones en progreso
+MAX_WAIT=300
+WAITED=0
+while true; do
+    STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
+    if [ "$STATUS" != "InProgress" ]; then
+        break
+    fi
+    echo "Lambda update in progress ($STATUS). Waiting 10 seconds..."
+    sleep 10
+    WAITED=$((WAITED+10))
+    if [ $WAITED -ge $MAX_WAIT ]; then
+        echo "Timeout waiting for Lambda function update to finish." >&2
+        exit 1
+    fi
+done
+
 MAX_RETRIES=5
 RETRY_COUNT=0
 until run_aws lambda update-function-configuration \

@@ -224,12 +224,13 @@ else
       --policy-name "$POLICY_NAME" \
       --policy-document file://lambda.json \
       --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
-fi
+
 echo "Attaching policy to the role..."
 aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn "$POLICY_ARN" \
   --profile "$AWS_PROFILE"
+fi
 
 # ----- Create ECR repository (if not exists) -----
 if aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >/dev/null 2>&1; then
@@ -295,10 +296,11 @@ aws lambda update-function-configuration \
 
 # ----- Invoke the Lambda function for testing (only if TEST_S3_KEY is provided) -----
 if [ -n "$TEST_S3_KEY" ]; then
+    BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
     echo "Invoking Lambda function for testing..."
     aws lambda invoke \
       --function-name "$LAMBDA_FUNCTION" \
-      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"example-invocation-id\", \"job\": {\"id\": \"job-id\"}, \"tasks\": [{\"taskId\": \"task-id\", \"s3BucketArn\": \"arn:aws:s3:::my-s3-bucket\", \"s3Key\": \"${TEST_S3_KEY}\", \"s3VersionId\": \"1\"}]}" \
+      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"example-invocation-id\", \"job\": {\"id\": \"job-id\"}, \"tasks\": [{\"taskId\": \"task-id\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${TEST_S3_KEY}\", \"s3VersionId\": \"1\"}]}" \
       response.json \
       --cli-binary-format raw-in-base64-out \
       --profile "$AWS_PROFILE"

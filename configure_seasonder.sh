@@ -8,7 +8,7 @@
 #   - Creates a Lambda function using the created image.
 #   - Invokes the Lambda function for testing.
 #
-# Usage: configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key]
+# Usage: configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size]
 #   -h: Show this help message.
 #   -o: Override OPTIONS key with key=value (can be used multiple times).
 #   -A: AWS profile (default: your_aws_profile).
@@ -18,10 +18,13 @@
 #   -P: Policy name (default: lambda-s3-logs).
 #   -T: Pattern path (default: empty).
 #   -S: S3 output path (default: empty).
-#   -K: S3 key for testing (default: tests/readcs-docker/CSS_TORA_24_04_04_0700.cs).
+#   -K: S3 key for testing (default: empty).
+#   -g: AWS region (default: eu-west-3).
+#   -t: Timeout for Lambda function (default: 100 seconds).
+#   -m: Memory size for Lambda function (default: 2048 MB).
 #
 # Example:
-#   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key
+#   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key -g us-east-1 -t 120 -m 1024
 # ----------------------------------------------------------------------------
 
 user_options=()
@@ -52,12 +55,15 @@ LAMBDA_FUNCTION="process_lambda"
 ROLE_NAME="process-lambda-role"
 POLICY_NAME="lambda-s3-logs"
 TEST_S3_KEY=""
+REGION="eu-west-3" # Default region
+TIMEOUT=100       # Default timeout in seconds
+MEMORY_SIZE=2048  # Default memory size in MB
 
-# Extended argument parsing (include -T, -S, and -K for missing ENVs)
-while getopts "ho:A:E:L:R:P:T:S:K:" opt; do
+# Extended argument parsing (include -T, -S, -K, -g, -t, and -m for missing ENVs)
+while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:" opt; do
     case $opt in
         h)
-            echo "Usage: $0 [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key]"
+            echo "Usage: $0 [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size]"
             echo "Defaults for OPTIONS:"
             echo "  nsm=${OPTS_NSM}"
             echo "  fdown=${OPTS_FDOWN}"
@@ -77,6 +83,7 @@ while getopts "ho:A:E:L:R:P:T:S:K:" opt; do
             echo "  SEASONDER_PATTERN_PATH=${OPTS_PATTERN_PATH}"
             echo "  SEASONDER_S3_OUTPUT_PATH=${OPTS_S3_OUTPUT_PATH}"
             echo "  TEST_S3_KEY=${TEST_S3_KEY}"
+            echo "  REGION=${REGION}"
             exit 0
             ;;
         o) user_options+=("$OPTARG") ;;
@@ -88,6 +95,7 @@ while getopts "ho:A:E:L:R:P:T:S:K:" opt; do
         T) OPTS_PATTERN_PATH="$OPTARG" ;;  # New flag for pattern path override
         S) OPTS_S3_OUTPUT_PATH="$OPTARG" ;; # New flag for S3 output path override
         K) TEST_S3_KEY="$OPTARG" ;; # New flag for S3 key override
+        g) REGION="$OPTARG" ;; # New flag for region override
         *) ;;
     esac
 done
@@ -195,19 +203,28 @@ cat > lambda.json <<EOF
 EOF
 
 # ----- Create IAM role for Lambda -----
-echo "Creating IAM role..."
-aws iam create-role \
-  --role-name "$ROLE_NAME" \
-  --assume-role-policy-document file://lambda-policy.json \
-  --profile "$AWS_PROFILE"
+if aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >/dev/null 2>&1; then
+    echo "IAM role $ROLE_NAME already exists, skipping creation."
+else
+    echo "Creating IAM role..."
+    aws iam create-role \
+      --role-name "$ROLE_NAME" \
+      --assume-role-policy-document file://lambda-policy.json \
+      --profile "$AWS_PROFILE"
+fi
 
 # ----- Create policy and attach it to the role -----
-echo "Creating IAM policy..."
-POLICY_ARN=$(aws iam create-policy \
-  --policy-name "$POLICY_NAME" \
-  --policy-document file://lambda.json \
-  --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
-
+EXISTING_POLICY_ARN=$(aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
+if [ -n "$EXISTING_POLICY_ARN" ]; then
+    echo "IAM policy $POLICY_NAME already exists, skipping creation."
+    POLICY_ARN="$EXISTING_POLICY_ARN"
+else
+    echo "Creating IAM policy..."
+    POLICY_ARN=$(aws iam create-policy \
+      --policy-name "$POLICY_NAME" \
+      --policy-document file://lambda.json \
+      --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
+fi
 echo "Attaching policy to the role..."
 aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
@@ -215,14 +232,17 @@ aws iam attach-role-policy \
   --profile "$AWS_PROFILE"
 
 # ----- Create ECR repository (if not exists) -----
-echo "Creating ECR repository..."
-aws ecr create-repository \
-  --repository-name "$ECR_REPO" \
-  --profile "$AWS_PROFILE"
+if aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >/dev/null 2>&1; then
+    echo "ECR repository $ECR_REPO already exists, skipping creation."
+else
+    echo "Creating ECR repository..."
+    aws ecr create-repository \
+      --repository-name "$ECR_REPO" \
+      --profile "$AWS_PROFILE"
+fi
 
 # ----- Log in to ECR -----
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text --profile "$AWS_PROFILE")
-REGION="eu-west-3"
 echo "Logging in to ECR..."
 aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
@@ -250,8 +270,8 @@ aws lambda create-function \
 echo "Updating Lambda function configuration..."
 aws lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION" \
-  --timeout 100 \
-  --memory-size 2048 \
+  --timeout "$TIMEOUT" \
+  --memory-size "$MEMORY_SIZE" \
   --environment "Variables={
     \"SEASONDER_PATTERN_PATH\":\"$OPTS_PATTERN_PATH\",
     \"SEASONDER_NSM\":\"$OPTS_NSM\",

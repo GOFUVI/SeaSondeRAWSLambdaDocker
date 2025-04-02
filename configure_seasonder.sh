@@ -273,7 +273,7 @@ aws lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION" \
   --timeout "$TIMEOUT" \
   --memory-size "$MEMORY_SIZE" \
-  --environment "Variables={
+  --environment "{\"Variables\":{
     \"SEASONDER_PATTERN_PATH\":\"$OPTS_PATTERN_PATH\",
     \"SEASONDER_NSM\":\"$OPTS_NSM\",
     \"SEASONDER_FDOWN\":\"$OPTS_FDOWN\",
@@ -291,7 +291,7 @@ aws lambda update-function-configuration \
     \"SEASONDER_MUSIC_PARAMETERS\":\"$OPTS_MUSIC_PARAMETERS\",
     \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
     \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\"
-  }" \
+  }}" \
   --profile "$AWS_PROFILE"
 
 # ----- Invoke the Lambda function for testing (only if TEST_S3_KEY is provided) -----

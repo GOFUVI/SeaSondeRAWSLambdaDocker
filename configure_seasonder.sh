@@ -8,7 +8,7 @@
 #   - Creates a Lambda function using the created image.
 #   - Invokes the Lambda function for testing.
 #
-# Usage: configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size]
+# Usage: configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size] [-u S3_RESOURCE_ARN]
 #   -h: Show this help message.
 #   -o: Override OPTIONS key with key=value (can be used multiple times).
 #   -A: AWS profile (default: your_aws_profile).
@@ -22,12 +22,21 @@
 #   -g: AWS region (default: eu-west-3).
 #   -t: Timeout for Lambda function (default: 100 seconds).
 #   -m: Memory size for Lambda function (default: 2048 MB).
+#   -u: S3 resource ARN (default: arn:aws:s3:::my-s3-bucket/*).
 #
 # Example:
-#   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key -g us-east-1 -t 120 -m 1024
+#   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key -g us-east-1 -t 120 -m 1024 -u arn:aws:s3:::my-custom-bucket/*
 # ----------------------------------------------------------------------------
 
 user_options=()
+LOGFILE="/Users/jherrera/Desktop/SeaSondeRAWSLambdaDocker/aws_commands.log"
+echo "" > "$LOGFILE"  # Sobreescribe el fichero de logs en cada ejecución
+
+# Añadir función para loggear los comandos aws ejecutados
+run_aws() {
+    echo "Executing: aws $*" >> "$LOGFILE" 2>&1
+    aws "$@"
+}
 
 # Replace OPTIONS array with hard-coded default values (plus missing ENVs)
 OPTS_NSM=2
@@ -58,12 +67,13 @@ TEST_S3_KEY=""
 REGION="eu-west-3" # Default region
 TIMEOUT=100       # Default timeout in seconds
 MEMORY_SIZE=2048  # Default memory size in MB
+S3_RESOURCE_ARN=""  # new parameter S3_RESOURCE_ARN
 
-# Extended argument parsing (include -T, -S, -K, -g, -t, and -m for missing ENVs)
-while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:" opt; do
+# Extended argument parsing (include -T, -S, -K, -g, -t, -m and new -u for S3_RESOURCE_ARN)
+while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
     case $opt in
         h)
-            echo "Usage: $0 [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size]"
+            echo "Usage: $0 [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size] [-u S3_RESOURCE_ARN]"
             echo "Defaults for OPTIONS:"
             echo "  nsm=${OPTS_NSM}"
             echo "  fdown=${OPTS_FDOWN}"
@@ -84,6 +94,7 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:" opt; do
             echo "  SEASONDER_S3_OUTPUT_PATH=${OPTS_S3_OUTPUT_PATH}"
             echo "  TEST_S3_KEY=${TEST_S3_KEY}"
             echo "  REGION=${REGION}"
+            echo "  S3_RESOURCE_ARN=${S3_RESOURCE_ARN}"
             exit 0
             ;;
         o) user_options+=("$OPTARG") ;;
@@ -94,12 +105,24 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:" opt; do
         P) POLICY_NAME="$OPTARG" ;;
         T) OPTS_PATTERN_PATH="$OPTARG" ;;  # New flag for pattern path override
         S) OPTS_S3_OUTPUT_PATH="$OPTARG" ;; # New flag for S3 output path override
-        K) TEST_S3_KEY="$OPTARG" ;; # New flag for S3 key override
-        g) REGION="$OPTARG" ;; # New flag for region override
+        K) TEST_S3_KEY="$OPTARG" ;;         # New flag for S3 key override
+        g) REGION="$OPTARG" ;;              # New flag for region override
+        t) TIMEOUT="$OPTARG" ;;
+        m) MEMORY_SIZE="$OPTARG" ;;
+        u) S3_RESOURCE_ARN="$OPTARG" ;;     # New flag for S3_RESOURCE_ARN override
         *) ;;
     esac
 done
 shift $((OPTIND - 1))
+# Validate S3_RESOURCE_ARN
+if [ -z "$S3_RESOURCE_ARN" ]; then
+    echo "Error: S3_RESOURCE_ARN must be provided." >&2
+    exit 1
+fi
+if [[ ! "$S3_RESOURCE_ARN" =~ ^arn:aws:s3::: ]]; then
+    echo "Error: S3_RESOURCE_ARN is not a valid ARN." >&2
+    exit 1
+fi
 
 # Process -o flag to allow runtime overrides using the same names as the Dockerfile ENV variables
 for kv in "${user_options[@]}"; do
@@ -156,6 +179,8 @@ echo "  MUSIC_parameters=${OPTS_MUSIC_PARAMETERS}"
 echo "  discard=${OPTS_DISCARD}"
 
 # ----- Create temporary JSON files for IAM role and policy -----
+AWS_ACCOUNT_ID=$(run_aws sts get-caller-identity --query "Account" --output text --profile "$AWS_PROFILE")
+
 
 cat > lambda-policy.json <<EOF
 {
@@ -185,8 +210,8 @@ cat > lambda.json <<EOF
         "logs:CreateLogGroup"
       ],
       "Resource": [
-        "arn:aws:s3:::my-s3-bucket/*",
-        "arn:aws:logs:eu-west-3:*:*"
+        "${S3_RESOURCE_ARN}",
+        "arn:aws:logs:${REGION}:${AWS_ACCOUNT_ID}:*"
       ]
     },
     {
@@ -196,56 +221,74 @@ cat > lambda.json <<EOF
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:eu-west-3:*:log-group:/aws/lambda/${LAMBDA_FUNCTION}:*"
+      "Resource": "arn:aws:logs:${REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/lambda/${LAMBDA_FUNCTION}:*"
     }
   ]
 }
 EOF
 
 # ----- Create IAM role for Lambda -----
-if aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >/dev/null 2>&1; then
-    echo "IAM role $ROLE_NAME already exists, skipping creation."
-else
-    echo "Creating IAM role..."
-    aws iam create-role \
-      --role-name "$ROLE_NAME" \
-      --assume-role-policy-document file://lambda-policy.json \
-      --profile "$AWS_PROFILE"
+if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
+    echo "IAM role $ROLE_NAME exists, deleting..." >> "$LOGFILE" 2>&1
+    # Detach any policies attached to the role
+    attached_policies=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text --profile "$AWS_PROFILE")
+    for policy in $attached_policies; do
+       run_aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$policy" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+    done
+    run_aws iam delete-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 fi
+echo "Creating IAM role..." >> "$LOGFILE" 2>&1
+run_aws iam create-role \
+  --role-name "$ROLE_NAME" \
+  --assume-role-policy-document file://lambda-policy.json \
+  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+
+# --- New change: Update trust relationship ---
+echo "Updating IAM role trust relationship..." >> "$LOGFILE" 2>&1
+run_aws iam update-assume-role-policy \
+  --role-name "$ROLE_NAME" \
+  --policy-document file://lambda-policy.json \
+  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+# New change: wait for IAM role propagation to complete
+sleep 30
 
 # ----- Create policy and attach it to the role -----
-EXISTING_POLICY_ARN=$(aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
+EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text 2>&1)
 if [ -n "$EXISTING_POLICY_ARN" ]; then
-    echo "IAM policy $POLICY_NAME already exists, skipping creation."
-    POLICY_ARN="$EXISTING_POLICY_ARN"
-else
-    echo "Creating IAM policy..."
-    POLICY_ARN=$(aws iam create-policy \
-      --policy-name "$POLICY_NAME" \
-      --policy-document file://lambda.json \
-      --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
-
-echo "Attaching policy to the role..."
-aws iam attach-role-policy \
+    echo "IAM policy $POLICY_NAME exists, deleting..." >> "$LOGFILE" 2>&1
+    # Detach the policy from any roles that might have it attached
+    attached_roles=$(aws iam list-entities-for-policy --policy-arn "$EXISTING_POLICY_ARN" --query 'PolicyRoles[*].RoleName' --output text --profile "$AWS_PROFILE")
+    for role in $attached_roles; do
+         run_aws iam detach-role-policy --role-name "$role" --policy-arn "$EXISTING_POLICY_ARN" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+    done
+    run_aws iam delete-policy --policy-arn "$EXISTING_POLICY_ARN" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+fi
+echo "Creating IAM policy..." >> "$LOGFILE" 2>&1
+POLICY_ARN=$(run_aws iam create-policy \
+  --policy-name "$POLICY_NAME" \
+  --policy-document file://lambda.json \
+  --profile "$AWS_PROFILE" 2>&1 | jq -r '.Policy.Arn')
+echo "Attaching policy to the role..." >> "$LOGFILE" 2>&1
+run_aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn "$POLICY_ARN" \
-  --profile "$AWS_PROFILE"
-fi
+  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 
 # ----- Create ECR repository (if not exists) -----
-if aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >/dev/null 2>&1; then
-    echo "ECR repository $ECR_REPO already exists, skipping creation."
+if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
+    echo "ECR repository $ECR_REPO already exists, skipping creation." >> "$LOGFILE" 2>&1
 else
-    echo "Creating ECR repository..."
-    aws ecr create-repository \
+    echo "Creating ECR repository..." >> "$LOGFILE" 2>&1
+    run_aws ecr create-repository \
       --repository-name "$ECR_REPO" \
-      --profile "$AWS_PROFILE"
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 fi
 
 # ----- Log in to ECR -----
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text --profile "$AWS_PROFILE")
-echo "Logging in to ECR..."
-aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+
+echo "Logging in to ECR..." >> "$LOGFILE" 2>&1
+PASSWORD=$(run_aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION")
+echo "$PASSWORD" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
 # ----- Build, tag, and push the Docker image -----
 echo "Building Docker image..."
@@ -257,19 +300,29 @@ docker tag "$ECR_REPO":latest "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
 echo "Pushing Docker image..."
 docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
-# ----- Create the Lambda function -----
+# ----- Create or update the Lambda function -----
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
-echo "Creating Lambda function with image URI: $IMAGE_URI"
-aws lambda create-function \
-    --function-name "$LAMBDA_FUNCTION" \
-    --package-type Image \
-    --code ImageUri="$IMAGE_URI" \
-    --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
-    --profile "$AWS_PROFILE"
+if run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
+    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..." >> "$LOGFILE" 2>&1
+    run_aws lambda update-function-code \
+      --function-name "$LAMBDA_FUNCTION" \
+      --image-uri "$IMAGE_URI" \
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+else
+    echo "Creating Lambda function with image URI: $IMAGE_URI" >> "$LOGFILE" 2>&1
+    run_aws lambda create-function \
+        --function-name "$LAMBDA_FUNCTION" \
+        --package-type Image \
+        --code ImageUri="$IMAGE_URI" \
+        --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
+        --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+fi
 
 # ----- Update Lambda function configuration (optional) -----
-echo "Updating Lambda function configuration..."
-aws lambda update-function-configuration \
+echo "Updating Lambda function configuration..." >> "$LOGFILE" 2>&1
+MAX_RETRIES=5
+RETRY_COUNT=0
+until run_aws lambda update-function-configuration \
   --function-name "$LAMBDA_FUNCTION" \
   --timeout "$TIMEOUT" \
   --memory-size "$MEMORY_SIZE" \
@@ -292,18 +345,26 @@ aws lambda update-function-configuration \
     \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
     \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\"
   }}" \
-  --profile "$AWS_PROFILE"
+  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT+1))
+    if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
+      echo "Max retries reached. Update function configuration failed." >> "$LOGFILE" 2>&1
+      exit 1
+    fi
+    echo "Update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..." >> "$LOGFILE" 2>&1
+    sleep 10
+done
 
 # ----- Invoke the Lambda function for testing (only if TEST_S3_KEY is provided) -----
 if [ -n "$TEST_S3_KEY" ]; then
     BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
-    echo "Invoking Lambda function for testing..."
-    aws lambda invoke \
+    echo "Invoking Lambda function for testing..." >> "$LOGFILE" 2>&1
+    run_aws lambda invoke \
       --function-name "$LAMBDA_FUNCTION" \
-      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"example-invocation-id\", \"job\": {\"id\": \"job-id\"}, \"tasks\": [{\"taskId\": \"task-id\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${TEST_S3_KEY}\", \"s3VersionId\": \"1\"}]}" \
+      --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"YXNkbGZqYWRmaiBhc2RmdW9hZHNmZGpmaGFzbGtkaGZza2RmaAo\", \"job\": {\"id\": \"f3cc4f60-61f6-4a2b-8a21-d07600c373ce\"}, \"tasks\": [{\"taskId\": \"dGFza2lkZ29lc2hlcmUF\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${TEST_S3_KEY}\", \"s3VersionId\": \"1\"}]}" \
       response.json \
       --cli-binary-format raw-in-base64-out \
-      --profile "$AWS_PROFILE"
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 fi
 
 echo "Script completed. Check response.json for the invocation result."

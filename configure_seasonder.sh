@@ -67,7 +67,7 @@ TEST_S3_KEY=""
 REGION="eu-west-3" # Default region
 TIMEOUT=100       # Default timeout in seconds
 MEMORY_SIZE=2048  # Default memory size in MB
-S3_RESOURCE_ARN=""  # new parameter S3_RESOURCE_ARN
+S3_RESOURCE_ARN="arn:aws:s3:::jlhc-hf-eolus/*"  # new parameter S3_RESOURCE_ARN
 
 # Extended argument parsing (include -T, -S, -K, -g, -t, -m and new -u for S3_RESOURCE_ARN)
 while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
@@ -202,7 +202,7 @@ cat > lambda.json <<EOF
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "S3AndLogGroupAccess",
+      "Sid": "VisualEditor0",
       "Effect": "Allow",
       "Action": [
         "s3:PutObject",
@@ -229,50 +229,38 @@ EOF
 
 # ----- Create IAM role for Lambda -----
 if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then
-    echo "IAM role $ROLE_NAME exists, deleting..." >> "$LOGFILE" 2>&1
-    # Detach any policies attached to the role
-    attached_policies=$(aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query 'AttachedPolicies[*].PolicyArn' --output text --profile "$AWS_PROFILE")
-    for policy in $attached_policies; do
-       run_aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "$policy" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
-    done
-    run_aws iam delete-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
-fi
-echo "Creating IAM role..." >> "$LOGFILE" 2>&1
-run_aws iam create-role \
-  --role-name "$ROLE_NAME" \
-  --assume-role-policy-document file://lambda-policy.json \
-  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+    echo "IAM role $ROLE_NAME already exists, skipping creation." >> "$LOGFILE" 2>&1
+else
+    echo "Creating IAM role..." >> "$LOGFILE" 2>&1
+    run_aws iam create-role \
+      --role-name "$ROLE_NAME" \
+      --assume-role-policy-document file://lambda-policy.json \
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 
-# --- New change: Update trust relationship ---
-echo "Updating IAM role trust relationship..." >> "$LOGFILE" 2>&1
-run_aws iam update-assume-role-policy \
-  --role-name "$ROLE_NAME" \
-  --policy-document file://lambda-policy.json \
-  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
-# New change: wait for IAM role propagation to complete
-sleep 30
+    echo "Updating IAM role trust relationship..." >> "$LOGFILE" 2>&1
+    run_aws iam update-assume-role-policy \
+      --role-name "$ROLE_NAME" \
+      --policy-document file://lambda-policy.json \
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+    sleep 30
+fi
 
 # ----- Create policy and attach it to the role -----
 EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text 2>&1)
 if [ -n "$EXISTING_POLICY_ARN" ]; then
-    echo "IAM policy $POLICY_NAME exists, deleting..." >> "$LOGFILE" 2>&1
-    # Detach the policy from any roles that might have it attached
-    attached_roles=$(aws iam list-entities-for-policy --policy-arn "$EXISTING_POLICY_ARN" --query 'PolicyRoles[*].RoleName' --output text --profile "$AWS_PROFILE")
-    for role in $attached_roles; do
-         run_aws iam detach-role-policy --role-name "$role" --policy-arn "$EXISTING_POLICY_ARN" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
-    done
-    run_aws iam delete-policy --policy-arn "$EXISTING_POLICY_ARN" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
+    echo "IAM policy $POLICY_NAME already exists, skipping creation." >> "$LOGFILE" 2>&1
+else
+    echo "Creating IAM policy..." >> "$LOGFILE" 2>&1
+    POLICY_ARN=$(run_aws iam create-policy \
+      --policy-name "$POLICY_NAME" \
+      --policy-document file://lambda.json \
+      --profile "$AWS_PROFILE" 2>&1 | jq -r '.Policy.Arn')
+    echo "Attaching policy to the role..." >> "$LOGFILE" 2>&1
+    run_aws iam attach-role-policy \
+      --role-name "$ROLE_NAME" \
+      --policy-arn "$POLICY_ARN" \
+      --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 fi
-echo "Creating IAM policy..." >> "$LOGFILE" 2>&1
-POLICY_ARN=$(run_aws iam create-policy \
-  --policy-name "$POLICY_NAME" \
-  --policy-document file://lambda.json \
-  --profile "$AWS_PROFILE" 2>&1 | jq -r '.Policy.Arn')
-echo "Attaching policy to the role..." >> "$LOGFILE" 2>&1
-run_aws iam attach-role-policy \
-  --role-name "$ROLE_NAME" \
-  --policy-arn "$POLICY_ARN" \
-  --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1
 
 # ----- Create ECR repository (if not exists) -----
 if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" >> "$LOGFILE" 2>&1; then

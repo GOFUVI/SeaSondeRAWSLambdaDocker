@@ -1,39 +1,59 @@
 #!/bin/bash
-# filepath: /home/vant/Documentos/SeaSondeRAWSLambdaDocker/configure_seasonder.sh
 # ----------------------------------------------------------------------------
 # Script: configure_seasonder.sh
-# Description: Executes the steps outlined in the README:
-#   - Creates an IAM role and policy from temporary JSON files.
-#   - Creates an ECR repository, logs in, builds, tags, and pushes the Docker image.
-#   - Creates a Lambda function using the created image.
-#   - Invokes the Lambda function for testing.
+# Description: This script automates the deployment and configuration of a Docker-based
+#   AWS Lambda function. It performs the following operations:
+#     1. Logs all AWS CLI commands executed to a log file for troubleshooting.
+#     2. Validates and processes input parameters such as AWS profile, ECR repository name,
+#        Lambda function name, IAM role & policy names, S3 URIs, and Docker image settings.
+#     3. Creates temporary JSON documents for the IAM trust policy and Lambda execution policy.
+#     4. Checks if the specified IAM role exists; if not, it creates the role and updates its trust policy.
+#     5. Checks if the IAM policy exists; if not, it creates the policy and attaches it to the role.
+#     6. Verifies the existence of the specified ECR repository; if it does not exist, it creates one.
+#     7. Logs into the ECR repository, builds, tags, and pushes a Docker image to it.
+#     8. Creates or updates the Lambda function to use the newly pushed Docker image.
+#     9. Updates the Lambda function configuration with environment variables that reflect the
+#        runtime options, ensuring that all mandatory S3 URIs and parameters are set correctly.
+#    10. Optionally tests the Lambda function invocation if a test S3 key is provided.
+#
+# Requirements:
+#   - AWS CLI, Docker, and jq must be installed and properly configured.
+#   - Valid AWS credentials with permissions to create and update IAM roles, policies, ECR repositories,
+#     and Lambda functions.
 #
 # Usage: configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size] [-u S3_RESOURCE_ARN]
 #   -h: Show this help message.
-#   -o: Override OPTIONS key with key=value (can be used multiple times).
+#   -o: Override OPTIONS with key=value pairs (can be specified multiple times).
 #   -A: AWS profile (default: your_aws_profile).
 #   -E: ECR repository name (default: my-lambda-docker).
 #   -L: Lambda function name (default: process_lambda).
 #   -R: IAM role name (default: process-lambda-role).
-#   -P: Policy name (default: lambda-s3-logs).
-#   -T: Pattern path (default: empty).
-#   -S: S3 output path (default: empty).
-#   -K: S3 key for testing (default: empty).
+#   -P: IAM policy name (default: lambda-s3-logs).
+#   -T: S3 pattern path (must start with s3://).
+#   -S: S3 output path (must start with s3://).
+#   -K: S3 key for testing (optional).
 #   -g: AWS region (default: eu-west-3).
-#   -t: Timeout for Lambda function (default: 100 seconds).
-#   -m: Memory size for Lambda function (default: 2048 MB).
+#   -t: Lambda function timeout in seconds (default: 100).
+#   -m: Lambda function memory size in MB (default: 2048).
 #   -u: S3 resource ARN (default: arn:aws:s3:::my-s3-bucket/*).
 #
-# Example:
-#   ./configure_seasonder.sh -o nsm=3 -A my_aws_profile -E my_repo -L my_lambda -R my_role -P my_policy -T s3://my-pattern-path -S my-s3-output-path -K my-test-s3-key -g us-east-1 -t 120 -m 1024 -u arn:aws:s3:::my-custom-bucket/*
+# Detailed Steps:
+#   1. Log and process input parameters along with runtime override options.
+#   2. Validate the provided S3 URIs and the S3_RESOURCE_ARN for proper format.
+#   3. Create temporary JSON files for the necessary IAM role and policy configurations.
+#   4. Either create or update AWS resources (IAM role, policy, ECR repository, Lambda function)
+#      based on the existence checks.
+#   5. Build and push the Docker image to the Amazon ECR repository.
+#   6. Update the Lambda configuration with pertinent environment variables.
+#   7. Optionally invoke the Lambda function to verify deployment.
 # ----------------------------------------------------------------------------
 
 LOG_FILE="aws_commands.log"
-rm -f "$LOG_FILE"  # Sobreescribe el log de cada ejecución
+rm -f "$LOG_FILE"  # Overwrites the log for each execution
 
 user_options=()
 
-# Añadir función para loggear los comandos aws ejecutados
+# Add function to log executed AWS commands
 run_aws() {
     echo "Running: aws $*" >> "$LOG_FILE"  # log to file only
     output=$(aws "$@" 2>&1)
@@ -311,7 +331,7 @@ fi
 
 # ----- Update Lambda function configuration (optional) -----
 echo "Updating Lambda function configuration..."
-# Agregar bucle de espera para asegurar que no haya actualizaciones en progreso
+# Add a wait loop to ensure that any ongoing updates have completed
 MAX_WAIT=300
 WAITED=0
 while true; do

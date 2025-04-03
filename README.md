@@ -275,7 +275,7 @@ When you update your Docker image or want to change configuration settings, use 
      --function-name process_lambda \
      --timeout 100 \
      --memory-size 2048 \
-     --environment '{"Variables":{"MY_PATTERN_PATH":"s3://my-s3-bucket/tests/readcs-docker/MeasPattern.txt", "MY_DOPPLER_INTERPOLATION":"2", "MY_S3_OUTPUT_PATH":"tests/readcs-docker"}}' \
+     --environment '{"Variables":{"MY_PATTERN_PATH":"s3://my-s3-bucket/path/to/your/pattern/file.txt", "MY_DOPPLER_INTERPOLATION":"2", "MY_S3_OUTPUT_PATH":"s3://my-s3-bucket/path/to/your/output/folder"}}' \
      --profile your_aws_profile
    ```
 
@@ -287,7 +287,7 @@ When you update your Docker image or want to change configuration settings, use 
        "Timeout": 40,
        "Environment": {
            "Variables": {
-               "MY_PATTERN_PATH": "s3://my-s3-bucket/tests/readcs-docker/IdealPattern.txt",
+               "MY_PATTERN_PATH": "s3://my-s3-bucket/path/to/your/pattern/file.txt",
                "MY_DOPPLER_INTERPOLATION": "1"
            }
        },
@@ -305,7 +305,7 @@ After deployment, test your Lambda function by invoking it with a sample payload
 ```bash
 aws lambda invoke \
   --function-name process_lambda \
-  --payload '{"invocationSchemaVersion": "1.0", "invocationId": "example-invocation-id", "job": {"id": "job-id"}, "tasks": [{"taskId": "task-id", "s3BucketArn": "arn:aws:s3:::my-s3-bucket", "s3Key": "tests/readcs-docker/CSS_TORA_24_04_04_0700.cs", "s3VersionId": "1"}]}' \
+  --payload '{"invocationSchemaVersion": "1.0", "invocationId": "example-invocation-id", "job": {"id": "job-id"}, "tasks": [{"taskId": "task-id", "s3BucketArn": "arn:aws:s3:::my-s3-bucket", "s3Key": "your/spectra/file/key.css", "s3VersionId": "1"}]}' \
   response.json \
   --cli-binary-format raw-in-base64-out \
   --profile your_aws_profile

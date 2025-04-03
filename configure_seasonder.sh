@@ -48,17 +48,23 @@
 #   7. Optionally invoke the Lambda function to verify deployment.
 # ----------------------------------------------------------------------------
 
+# ----- Setup logging ===================================================================================
 LOG_FILE="aws_commands.log"
-rm -f "$LOG_FILE"  # Overwrites the log for each execution
+rm -f "$LOG_FILE"  # Remove any existing log file to start fresh
 
+# ----- Initialize options array for runtime overrides --------------------------------------------------
 user_options=()
 
-# Add function to log executed AWS commands
+# ----- Function Definition: run_aws ---------------------------------------------------------------------
+# This function wraps the AWS CLI commands to:
+#   1. Log the full command line that is executed.
+#   2. Capture both standard output and errors.
+#   3. Write the command output to the log file for later debugging.
 run_aws() {
-    echo "Running: aws $*" >> "$LOG_FILE"  # log to file only
+    echo "Running: aws $*" >> "$LOG_FILE"  # Log executed command
     output=$(aws "$@" 2>&1)
-    echo "$output" >> "$LOG_FILE"
-    echo "$output"
+    echo "$output" >> "$LOG_FILE"          # Log output
+    echo "$output"                        # Also display output on the console
 }
 
 # Replace OPTIONS array with hard-coded default values (plus missing ENVs)
@@ -92,11 +98,12 @@ TIMEOUT=100       # Default timeout in seconds
 MEMORY_SIZE=2048  # Default memory size in MB
 S3_RESOURCE_ARN="arn:aws:s3:::jlhc-hf-eolus/*"  # new parameter S3_RESOURCE_ARN
 
-# Extended argument parsing (include -T, -S, -K, -g, -t, -m and new -u for S3_RESOURCE_ARN)
+# ----- Argument Parsing ----------------------------------------------------------------------------------
 while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
     case $opt in
         h)
             echo "Usage: $0 [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size] [-u S3_RESOURCE_ARN]"
+            # Display default options for clarity in help message
             echo "Defaults for OPTIONS:"
             echo "  nsm=${OPTS_NSM}"
             echo "  fdown=${OPTS_FDOWN}"
@@ -120,23 +127,24 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
             echo "  S3_RESOURCE_ARN=${S3_RESOURCE_ARN}"
             exit 0
             ;;
-        o) user_options+=("$OPTARG") ;;
-        A) AWS_PROFILE="$OPTARG" ;;
-        E) ECR_REPO="$OPTARG" ;;
-        L) LAMBDA_FUNCTION="$OPTARG" ;;
-        R) ROLE_NAME="$OPTARG" ;;
-        P) POLICY_NAME="$OPTARG" ;;
-        T) OPTS_PATTERN_PATH="$OPTARG" ;;  # New flag for pattern path override
-        S) OPTS_S3_OUTPUT_PATH="$OPTARG" ;; # New flag for S3 output path override
-        K) TEST_S3_KEY="$OPTARG" ;;         # New flag for S3 key override
-        g) REGION="$OPTARG" ;;              # New flag for region override
-        t) TIMEOUT="$OPTARG" ;;
-        m) MEMORY_SIZE="$OPTARG" ;;
-        u) S3_RESOURCE_ARN="$OPTARG" ;;     # New flag for S3_RESOURCE_ARN override
-        *) ;;
+        o) user_options+=("$OPTARG") ;;       # Collect key=value pairs for runtime overrides
+        A) AWS_PROFILE="$OPTARG" ;;           # Override AWS profile if provided
+        E) ECR_REPO="$OPTARG" ;;              # Override ECR repository name if provided
+        L) LAMBDA_FUNCTION="$OPTARG" ;;       # Override Lambda function name if provided
+        R) ROLE_NAME="$OPTARG" ;;             # Override IAM role name if provided
+        P) POLICY_NAME="$OPTARG" ;;           # Override IAM policy name if provided
+        T) OPTS_PATTERN_PATH="$OPTARG" ;;     # Override S3 pattern path
+        S) OPTS_S3_OUTPUT_PATH="$OPTARG" ;;   # Override S3 output path
+        K) TEST_S3_KEY="$OPTARG" ;;           # Override test S3 key
+        g) REGION="$OPTARG" ;;                # Override AWS region
+        t) TIMEOUT="$OPTARG" ;;               # Override Lambda timeout value
+        m) MEMORY_SIZE="$OPTARG" ;;           # Override Lambda memory size
+        u) S3_RESOURCE_ARN="$OPTARG" ;;       # Override S3 resource ARN
+        *) ;;                                # Ignore unrecognized options
     esac
 done
 shift $((OPTIND - 1))
+
 # Validate S3_RESOURCE_ARN
 if [ -z "$S3_RESOURCE_ARN" ]; then
     echo "Error: S3_RESOURCE_ARN must be provided." >&2
@@ -173,18 +181,17 @@ for kv in "${user_options[@]}"; do
     esac
 done
 
-# After processing the options, validate mandatory S3 arguments:
+# ----- Validate Mandatory S3 Arguments ------------------------------------------------------------------
 if [ -z "$OPTS_PATTERN_PATH" ] || [ -z "$OPTS_S3_OUTPUT_PATH" ]; then
     echo "Error: Both SEASONDER_PATTERN_PATH (-T) and SEASONDER_S3_OUTPUT_PATH (-S) must be provided."
     exit 1
 fi
 
-# Validate that the provided arguments are valid S3 URIs:
+# Ensure S3 URIs begin with "s3://"
 if [[ "$OPTS_PATTERN_PATH" != s3://* ]]; then
     echo "Error: SEASONDER_PATTERN_PATH must be a valid S3 URI (start with s3://)."
     exit 1
 fi
-
 if [[ "$OPTS_S3_OUTPUT_PATH" != s3://* ]]; then
     echo "Error: SEASONDER_S3_OUTPUT_PATH must be a valid S3 URI (start with s3://)."
     exit 1
@@ -201,9 +208,9 @@ echo "  smoothNoiseLevel=${OPTS_SMOOTH_NOISE_LEVEL}"
 echo "  MUSIC_parameters=${OPTS_MUSIC_PARAMETERS}"
 echo "  discard=${OPTS_DISCARD}"
 
-# ----- Create temporary JSON files for IAM role and policy -----
+# ----- Create Temporary JSON Files for IAM Configurations ---------------------------------------------
+# The following block creates JSON files used to set up IAM policies and roles.
 AWS_ACCOUNT_ID=$(run_aws sts get-caller-identity --query "Account" --output text --profile "$AWS_PROFILE")
-
 
 cat > lambda-policy.json <<EOF
 {
@@ -250,7 +257,7 @@ cat > lambda.json <<EOF
 }
 EOF
 
-# ----- Create IAM role for Lambda -----
+# ----- Create or Update the IAM Role ---------------------------------------------------------------------
 if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE"; then
     echo "IAM role $ROLE_NAME already exists, skipping creation."
 else
@@ -265,10 +272,9 @@ else
       --role-name "$ROLE_NAME" \
       --policy-document file://lambda-policy.json \
       --profile "$AWS_PROFILE"
-    sleep 30
+    sleep 30  # Wait to allow IAM role propagation
 fi
 
-# ----- Create policy and attach it to the role -----
 EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
 if [ -n "$EXISTING_POLICY_ARN" ]; then
     echo "IAM policy $POLICY_NAME already exists, skipping creation."
@@ -285,7 +291,7 @@ else
       --profile "$AWS_PROFILE"
 fi
 
-# ----- Create ECR repository (if not exists) -----
+# ----- Create the ECR Repository if It Does Not Exist --------------------------------------------------
 if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE"; then
     echo "ECR repository $ECR_REPO already exists, skipping creation."
 else
@@ -295,15 +301,15 @@ else
       --profile "$AWS_PROFILE"
 fi
 
-# ----- Log in to ECR -----
-
+# ----- Log in to Amazon ECR -----------------------------------------------------------------------------
 echo "Logging in to ECR..."
 PASSWORD=$(run_aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION")
+# Pipe the ECR login password to Docker to authenticate
 echo "$PASSWORD" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
-# ----- Build, tag, and push the Docker image -----
+# ----- Build, Tag, and Push the Docker Image -----------------------------------------------------------
 echo "Building Docker image..."
-docker build -t "$ECR_REPO" .
+docker build -t "$ECR_REPO" .  # Build the Docker image using the Dockerfile in the current directory
 
 echo "Tagging Docker image..."
 docker tag "$ECR_REPO":latest "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
@@ -311,7 +317,7 @@ docker tag "$ECR_REPO":latest "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
 echo "Pushing Docker image..."
 docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
-# ----- Create or update the Lambda function -----
+# ----- Create or Update the Lambda Function ------------------------------------------------------------
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 if run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE"; then
     echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
@@ -329,9 +335,9 @@ else
         --profile "$AWS_PROFILE"
 fi
 
-# ----- Update Lambda function configuration (optional) -----
+# ----- Update Lambda Function Configuration ------------------------------------------------------------
 echo "Updating Lambda function configuration..."
-# Add a wait loop to ensure that any ongoing updates have completed
+# Wait until any ongoing update operations have completed before modifying configuration
 MAX_WAIT=300
 WAITED=0
 while true; do
@@ -339,15 +345,16 @@ while true; do
     if [ "$STATUS" != "InProgress" ]; then
         break
     fi
-    echo "Lambda update in progress ($STATUS). Waiting 10 seconds..."
+    echo "Lambda update is in progress ($STATUS). Waiting 10 seconds..."
     sleep 10
     WAITED=$((WAITED+10))
     if [ $WAITED -ge $MAX_WAIT ]; then
-        echo "Timeout waiting for Lambda function update to finish." >&2
+        echo "Timeout reached while waiting for Lambda function update to finish." >&2
         exit 1
     fi
 done
 
+# Retry mechanism for updating the Lambda configuration in case of transient errors
 MAX_RETRIES=5
 RETRY_COUNT=0
 until run_aws lambda update-function-configuration \
@@ -376,15 +383,16 @@ until run_aws lambda update-function-configuration \
   --profile "$AWS_PROFILE"; do
     RETRY_COUNT=$((RETRY_COUNT+1))
     if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
-      echo "Max retries reached. Update function configuration failed."
+      echo "Maximum retries reached. Failed to update Lambda function configuration."
       exit 1
     fi
-    echo "Update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..."
+    echo "Configuration update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..."
     sleep 10
 done
 
-# ----- Invoke the Lambda function for testing (only if TEST_S3_KEY is provided) -----
+# ----- Optionally Invoke the Lambda Function for Testing ----------------------------------------------
 if [ -n "$TEST_S3_KEY" ]; then
+    # Parse the S3 bucket name and key from the provided TEST_S3_KEY
     BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
     KEY_PATH=$(echo "$TEST_S3_KEY" | cut -d'/' -f4-)
     echo "Invoking Lambda function for testing..."
@@ -398,5 +406,5 @@ fi
 
 echo "Script completed. Check response.json for the invocation result."
 
-# Clean up temporary files
+# ----- Clean Up Temporary Files --------------------------------------------------------------------------
 rm lambda-policy.json lambda.json

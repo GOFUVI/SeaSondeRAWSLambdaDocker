@@ -1,63 +1,54 @@
-# SeaSondeR on AWS: Building & Deploying a Docker-based Lambda Function
-
-This repository demonstrates how to build a Docker image for SeaSondeR, push it to AWS Elastic Container Registry (ECR), and deploy it as an AWS Lambda function. The Lambda function processes files stored in Amazon S3. This guide explains each step in plain English and provides background on the underlying technologies.
-
----
+# Batch Processing of SeaSonde HF-Radar Spectra Files on AWS with SeaSondeR R Package
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [AWS Setup for Docker Image & Lambda Function](#aws-setup)
-   - [Configure AWS CLI with SSO](#aws-cli)
-   - [Create an ECR Repository](#ecr-repository)
-   - [Push Your Docker Image to ECR](#push-docker)
-   - [Create the Lambda Function](#create-lambda)
-   - [Update the Lambda Function](#update-lambda)
-   - [Test the Lambda Function](#test-lambda)
-4. [User Manual: configure_seasonder.sh](#user-manual)
-   - [Overview and Purpose](#script-overview)
-   - [Pre-requisites for the Script](#script-prerequisites)
-   - [Usage and Options](#script-usage)
-   - [Step-by-Step Execution](#script-steps)
-   - [Example Commands](#script-examples)
-   - [Troubleshooting](#script-troubleshooting)
+1. **[Repository Overview](#1-repository-overview)**
+2. **[SeaSondeR on AWS: Building & Deploying a Docker-based Lambda Function](#2-seasonder-on-aws-building--deploying-a-docker-based-lambda-function)**
+    - [2.1 Step-by-step AWS Setup for Docker Image & Lambda Function](#21-step-by-step-aws-setup-for-docker-image--lambda-function)
+    - [Script: configure_seasonder.sh](#21-script-configure_seasondersh)
+3. **[Preparing a Manifest for S3 Batch Operations](#3-preparing-a-manifest-for-s3-batch-operations)**
+    - [3.1 Step-by-step instructions to create a manifest](#31-step-by-step-instructions-to-create-a-manifest)
+    - [Script: prepare_manifest.sh](#31-script-prepare_manifestsh)
 
----
+## 1. Repository Overview
+### 1.1 Overview & Prerequisites
 
-## 1. Overview
+Welcome to our repository for batch processing HF-Radar spectra files using the SeaSondeR R package on AWS. This guide will walk you through building, deploying, and updating a Docker-based Lambda function to process files stored in Amazon S3, as well as preparing a CSV manifest for S3 Batch Operations. Through this comprehensive approach, you will learn to:
 
-SeaSondeR is a tool designed to process data files from remote sensing stations. In this project, you will learn how to:
-- Build a Docker image containing SeaSondeR.
-- Upload this image to AWS ECR, a managed Docker container registry.
-- Create an AWS Lambda function that uses the Docker image to process files stored in S3 (Amazon’s object storage service).
+- **Build** a Docker image containing SeaSondeR.
+- **Push** the image to AWS Elastic Container Registry (ECR), a managed service for Docker images.
+- **Deploy** and **update** an AWS Lambda function using the Docker image to process S3 files.
+- **Create a CSV manifest** that lists S3 objects, simplifying the execution of batch operations over large numbers of files.
 
-*Key Terms:*
-- **Docker:** A platform that allows you to package applications into containers—lightweight, standalone executable packages.
-- **ECR (Elastic Container Registry):** A managed AWS service to store Docker images.
-- **Lambda:** A serverless compute service by AWS that runs code in response to events.
-- **S3 (Simple Storage Service):** AWS storage for files, images, and other data.
-- **IAM (Identity and Access Management):** A service that helps control access to AWS resources.
+*Key Technologies:*
+- **Docker:** Lightweight, independent containers.
+- **ECR (Elastic Container Registry):** AWS-managed service for Docker images.
+- **Lambda:** Serverless computing for executing code in response to events.
+- **S3 (Simple Storage Service):** Scalable storage for data and files.
+- **IAM (Identity and Access Management):** Managing permissions for AWS resources.
 
----
+#### Prerequisites
 
-## 2. Prerequisites
+Before you begin, ensure you have:
 
-Before you begin, make sure you have:
-
-- **AWS SSO User:** An AWS Single Sign-On (SSO) identity with administrative permissions for certain tasks *(Note: Using administrative permissions is acceptable for testing but is not recommended in production)*.
-- **AWS CLI v2:** The latest version of the AWS Command Line Interface is installed on your machine.
+- **AWS SSO User:** An AWS Single Sign-On identity with the necessary permissions (administrative permissions are acceptable for testing, though not recommended for production).
+- **AWS CLI v2:** The latest version installed and configured (for example, using AWS SSO).
 - **Docker:** Installed and running on your system.
 - **jq:** A command-line tool for processing JSON.
-- **Basic familiarity with command-line interfaces:** While this guide is detailed, knowing basic shell commands will help.
+- **Basic Command Line Skills:** Familiarity with using the terminal to execute scripts and commands.
+- Appropriate permissions to list objects on S3 and to manage uploads/downloads, which are essential for generating and handling the CSV manifest for S3 Batch Operations.
+
+This combination of tools and requirements will prepare you to deploy a robust, automated solution that covers both data processing with SeaSondeR and the efficient management of multiple S3 files via Batch Operations.
 
 ---
 
-## 3. AWS Setup for Docker Image & Lambda Function
+## 2. SeaSondeR on AWS: Building & Deploying a Docker-based Lambda Function
+
+### 2.1. Step-by-step AWS Setup for Docker Image & Lambda Function
 
 This section covers the steps to prepare your AWS environment.
 
-### Configure AWS CLI with SSO
+#### Configure AWS CLI with SSO
 
 AWS CLI allows you to interact with AWS services from the command line. To configure it for SSO (Single Sign-On), run:
 
@@ -69,7 +60,7 @@ This command will prompt you to authenticate and select an AWS SSO profile.
 
 ---
 
-### Create an ECR Repository
+#### Create an ECR Repository
 
 ECR is where your Docker image will be stored. Replace `your_aws_profile` with your actual AWS CLI profile name and adjust the repository name if needed.
 
@@ -99,7 +90,7 @@ aws ecr create-repository --profile your_aws_profile --repository-name my-lambda
 
 ---
 
-### Push Your Docker Image to ECR
+#### Push Your Docker Image to ECR
 
 Follow these steps to build your Docker image, tag it, and push it to ECR:
 
@@ -137,7 +128,7 @@ Follow these steps to build your Docker image, tag it, and push it to ECR:
 
 ---
 
-### Create the Lambda Function
+#### Create the Lambda Function
 
 AWS Lambda lets you run code without provisioning servers. To run your Docker image as a Lambda function, perform the following steps:
 
@@ -255,7 +246,7 @@ AWS Lambda lets you run code without provisioning servers. To run your Docker im
 
 ---
 
-### Updating the Lambda Function
+#### Updating the Lambda Function
 
 When you update your Docker image or want to change configuration settings, use the following commands:
 
@@ -298,7 +289,7 @@ When you update your Docker image or want to change configuration settings, use 
 
 ---
 
-### Testing the Lambda Function
+#### Testing the Lambda Function
 
 After deployment, test your Lambda function by invoking it with a sample payload. This payload includes identifiers and S3 file information that the function will process.
 
@@ -319,14 +310,14 @@ A successful test will output a response similar to:
     "ExecutedVersion": "$LATEST"
 }
 ```
-
 ---
 
-## 4. User Manual: configure_seasonder.sh
+
+### 2.1. Script: configure_seasonder.sh
 
 This section provides detailed instructions for the `configure_seasonder.sh` script, which automates the deployment process described above.
 
-### Overview and Purpose
+#### Overview and Purpose
 
 The `configure_seasonder.sh` script is designed to simplify the deployment of the Docker-based AWS Lambda function. It automates the following tasks:
 - Creating IAM roles and policies.
@@ -338,7 +329,7 @@ All AWS CLI commands executed by the script are logged to `aws_commands.log` for
 
 ---
 
-### Pre-requisites for the Script
+#### Pre-requisites for the Script
 
 Before running the script, ensure you have:
 - **AWS CLI v2, Docker, and jq** installed on your machine.
@@ -346,7 +337,7 @@ Before running the script, ensure you have:
 
 ---
 
-### Usage and Options
+#### Usage and Options
 
 Run the script from the command line with the following options:
 
@@ -373,7 +364,7 @@ Run the script from the command line with the following options:
 
 ---
 
-### Step-by-Step Execution
+#### Step-by-Step Execution
 
 1. **Parameter Validation:**  
    The script first checks that all required S3 URIs are provided and that they follow the correct format.
@@ -395,7 +386,7 @@ Run the script from the command line with the following options:
 
 ---
 
-### Example Commands
+#### Example Commands
 
 - **Basic Run with Mandatory S3 URIs:**
 
@@ -411,7 +402,7 @@ Run the script from the command line with the following options:
 
 ---
 
-### Troubleshooting
+#### Troubleshooting
 
 - **Review Logs:**  
   If you encounter issues, check `aws_commands.log` for detailed output of the AWS CLI commands executed by the script.
@@ -422,3 +413,147 @@ Run the script from the command line with the following options:
 - **Parameter Format:**  
   Verify that the S3 URIs and other parameters are correctly formatted.
 
+---
+
+## 3. Preparing a Manifest for S3 Batch Operations
+
+S3 Batch Operations allow you to process large numbers of S3 objects in a single job. To do this, you need to prepare a manifest file—a CSV file listing the objects to process (with each line typically containing the bucket name and the object key, separated by a comma). Below are step-by-step instructions to create this manifest from an S3 folder (including its subfolders).
+
+### 3.1 Step-by-step instructions to create a manifest
+
+#### Step 1: List All Objects in the Folder
+
+Use the AWS CLI to list all objects in your target S3 folder. Replace `my-s3-bucket` with your bucket name and adjust the prefix path as needed.
+
+```bash
+aws s3api list-objects-v2 \
+  --bucket my-s3-bucket \
+  --prefix "path/to/folder/" \
+  --output json \
+  --profile your_aws_profile > objects.json
+```
+
+This command retrieves a JSON-formatted list of all objects under the specified folder.
+
+#### Step 2: Generate the CSV Manifest
+
+There are two common approaches to extract the object keys and format them into a CSV file:
+
+##### Option 1: Using `jq`
+
+If you have `jq` installed, run the following command to extract each object's key and create a CSV file where each line is formatted as `bucket,key`:
+
+```bash
+jq -r '.Contents[] | "my-s3-bucket," + .Key' objects.json > manifest.csv
+```
+
+##### Option 2: Using `awk` (Without `jq`)
+
+If you prefer not to use `jq`, you can use `awk` along with the `aws s3 ls` command. This command recursively lists the objects and formats the output into a CSV file. Make sure that the fourth column contains the object key (this may vary depending on your AWS CLI output):
+
+```bash
+aws s3 ls s3://my-s3-bucket/path/to/folder/ --recursive --profile your_aws_profile | awk '{print "my-s3-bucket," $4}' > manifest.csv
+```
+
+#### Step 3: Verify the Manifest
+
+```bash
+cat manifest.csv
+```
+
+Ensure that each line of `manifest.csv` correctly lists a bucket and an object key, making it ready for S3 Batch Operations.
+
+### 3.2 Script: prepare_manifest.sh
+
+This section provides detailed instructions for the prepare_manifest.sh script, which implements los steps described above to  generate a CSV manifest from an S3 folder. The script supports two methods for creating the manifest — using jq (preferred) or awk (fallback) — and offers options to display and optionally upload the manifest.
+
+---
+
+#### Overview and Purpose
+
+The prepare_manifest.sh script is designed to simplify the creation of a manifest file for S3 Batch Operations. It:
+- Lists S3 objects based on a specified bucket and folder prefix.
+- Generates a CSV file (manifest.csv) where each line contains the bucket name and object key.
+- Optionally uploads the generated manifest to a specified S3 destination.
+- Cleans up temporary files after execution.
+
+---
+
+#### Pre-requisites
+
+Before running prepare_manifest.sh, ensure that you have:
+- **AWS CLI v2** installed and configured (e.g., using AWS SSO).
+- **jq** installed for JSON processing (optional; the script falls back to awk if not available).
+- The correct AWS permissions to list S3 objects and upload files if needed.
+
+---
+
+#### Usage and Options
+
+Run the script from the command line with the following options:
+
+```bash
+./prepare_manifest.sh -b bucket_name -p prefix -r aws_profile [-d s3_destination_uri]
+```
+
+**Option Details:**
+
+- **-b bucket_name:** Specifies the S3 bucket name.
+- **-p prefix:** Defines the S3 folder prefix (e.g., "path/to/folder/").
+- **-r aws_profile:** Indicates the AWS CLI profile to use.
+- **-d s3_destination_uri (Optional):** If provided, the manifest.csv is uploaded to this S3 URI (must start with s3://).
+- **-h:** Show the help message and usage instructions.
+
+---
+
+#### Step-by-Step Execution
+
+1. **Argument Validation:**  
+    The script checks if the required parameters (-b, -p, and -r) are provided and validates the format of the destination URI if specified.
+
+2. **List S3 Objects:**  
+    Using the AWS CLI (with the provided AWS profile), the script lists the objects within the specified bucket and prefix and saves the output as objects.json.
+
+3. **Generate the CSV Manifest:**  
+    - If jq is available, it extracts the object keys and formats each line as "bucket,object_key".
+    - Otherwise, awk is used with the output of aws s3 ls to generate the CSV manifest.
+
+4. **Display Manifest Content:**  
+    The content of manifest.csv is shown in the terminal for verification.
+
+5. **Optional Upload to S3:**  
+    If a destination URI is provided (-d), the script uploads manifest.csv to that S3 location.
+
+6. **Cleanup:**  
+    Temporary files, such as objects.json, are removed at the end of the script.
+
+---
+
+#### Example Commands
+
+- **Basic Usage (Display Manifest):**
+
+    ```bash
+    ./prepare_manifest.sh -b my-s3-bucket -p "path/to/folder/" -r myprofile
+    ```
+
+- **Usage with Upload Option:**
+
+    ```bash
+    ./prepare_manifest.sh -b my-s3-bucket -p "path/to/folder/" -r myprofile -d s3://destination-bucket/manifest/manifest.csv
+    ```
+
+---
+
+#### Troubleshooting
+
+- **Error Listing Objects:**  
+  Check your AWS CLI credentials and ensure that the bucket and prefix are correct.
+
+- **Manifest Generation Issues:**  
+  Verify that either jq or awk is installed and functioning. If using aws s3 ls, confirm that the expected output format matches the script’s assumptions.
+
+- **Upload Failures:**  
+  Ensure that the destination URI starts with s3:// and that the IAM role associated with the AWS CLI profile has permission to upload files.
+
+---

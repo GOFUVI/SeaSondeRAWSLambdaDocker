@@ -1,7 +1,3 @@
-Below is a revised, detailed README that explains each step and technical term so that even users without an extensive technical background can follow along.
-
----
-
 # SeaSondeR on AWS: Building & Deploying a Docker-based Lambda Function
 
 This repository demonstrates how to build a Docker image for SeaSondeR, push it to AWS Elastic Container Registry (ECR), and deploy it as an AWS Lambda function. The Lambda function processes files stored in Amazon S3. This guide explains each step in plain English and provides background on the underlying technologies.
@@ -426,6 +422,3 @@ Run the script from the command line with the following options:
 - **Parameter Format:**  
   Verify that the S3 URIs and other parameters are correctly formatted.
 
----
-
-This README should serve as a comprehensive guide for users to build, deploy, and manage SeaSondeR on AWS using Docker and Lambda. Each step is explained in plain language to help users of all technical backgrounds understand the process. Enjoy building your serverless application!

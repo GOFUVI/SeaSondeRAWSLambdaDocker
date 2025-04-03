@@ -259,3 +259,64 @@ You should see a response similar to:
 }
 ```
 
+
+## User Manual: configure_seasonder.sh
+
+This section serves as a comprehensive user manual for the `configure_seasonder.sh` script. The script is designed to simplify the deployment of a Docker-based AWS Lambda function for users of any technical background.
+
+### Overview
+- Automates tasks such as creating IAM roles/policies, setting up an ECR repository, building & pushing a Docker image, and creating/updating a Lambda function.
+- Logs all AWS CLI commands to a log file (`aws_commands.log`) for troubleshooting purposes.
+
+### Pre-requisites
+Before running the script, ensure you have:
+- AWS CLI v2, Docker, and jq installed.
+- An AWS profile with permissions to manage IAM roles, policies, ECR repositories, and Lambda functions.
+- AWS CLI configured (e.g., using `aws configure sso`).
+
+### Usage
+Run the script from the command line as follows:
+
+```
+./configure_seasonder.sh [-h] [-o key=value] [-A aws_profile] [-E ecr_repo] [-L lambda_function] [-R role_name] [-P policy_name] [-T pattern_path] [-S s3_output_path] [-K test_s3_key] [-g region] [-t timeout] [-m memory_size] [-u S3_RESOURCE_ARN]
+```
+
+Where:
+- `-h`: Displays this help message.
+- `-o key=value`: Override default settings (can be used multiple times).
+- `-A`: AWS profile (default: your configured profile).
+- `-E`: ECR repository name (default: my-lambda-docker).
+- `-L`: Lambda function name (default: process_lambda).
+- `-R`: IAM role name (default: process-lambda-role).
+- `-P`: IAM policy name (default: lambda-s3-logs).
+- `-T`: S3 URI for the input antenna pattern file used for processing the spectra (must start with s3://).
+- `-S`: S3 URI for the output directory where results will be saved. Folders "Radial_Metrics" (for .ruv files) and "CS_Objects" (for .RData files containing the processed SeaSondeRCS objects) will be created.
+- `-K`: (Optional) S3 URI to a spectral file used to test the Lambda function.
+- `-g`: AWS region (default: eu-west-3).
+- `-t`: Lambda timeout in seconds (default: 100).
+- `-m`: Lambda memory size in MB (default: 2048).
+- `-u`: S3 resource ARN granting the Lambda function permissions for s3:PutObject and s3:GetObject (must start with arn:aws:s3:::).
+
+### Step-by-Step Execution
+1. **Parameter Validation**: Checks that required S3 URIs are provided and formatted correctly.
+2. **IAM Setup**: Creates temporary JSON files to define IAM trust and execution policies, then checks and creates/updates the required IAM role and policy.
+3. **ECR Repository Check**: Verifies if the specified ECR repository exists and creates it if needed.
+4. **Docker Image Deployment**: Logs into ECR, builds the Docker image, tags it, and pushes it to the repository.
+5. **Lambda Function Management**: Creates or updates the Lambda function to use the new Docker image and configures it with provided environment variables.
+6. **Optional Testing**: If a test S3 key is provided, the script invokes the Lambda function to confirm that the deployment was successful.
+
+### Example Commands
+- Basic run with mandatory S3 URIs:
+  ```bash
+  ./configure_seasonder.sh -T s3://example-bucket/my-pattern.txt -S s3://example-bucket/output/
+  ```
+- Advanced run with a custom AWS profile and a test key:
+  ```bash
+  ./configure_seasonder.sh -A myCustomProfile -T s3://example-bucket/my-pattern.txt -S s3://example-bucket/output/ -K s3://example-bucket/test-key.txt
+  ```
+
+### Troubleshooting
+- Check `aws_commands.log` for details on AWS CLI command executions and errors.
+- Ensure your AWS credentials have the necessary permissions for IAM, ECR, and Lambda operations.
+- Revisit the parameter values if the script reports any validation errors (e.g., incorrect S3 URI format).
+

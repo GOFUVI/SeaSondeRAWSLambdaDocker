@@ -35,8 +35,16 @@
 #   -g: AWS region (default: eu-west-3).
 #   -t: Lambda function timeout in seconds (default: 100).
 #   -m: Lambda function memory size in MB (default: 2048).
-#   -u: S3 resource ARN (default: arn:aws:s3:::my-s3-bucket/*).
+#   -u: S3 resource ARN (must start with arn:aws:s3:::).
 #
+# Parameter Details:
+#   -u: S3 resource ARN where the Lambda function is granted permission for s3:PutObject and
+#       s3:GetObject operations, enabling read and write file operations.
+#   -K: S3 URI to a spectral file used to test the Lambda function.
+#   -S: S3 URI to a directory where the results will be saved. Within this directory, folders
+#       named "Radial_Metrics" (for .ruv files) and "CS_Objects" (for .RData files containing the
+#       processed SeaSondeRCS objects) will be created.
+#   -T: S3 URI to an antenna pattern file that is used for processing the spectra.
 # Detailed Steps:
 #   1. Log and process input parameters along with runtime override options.
 #   2. Validate the provided S3 URIs and the S3_RESOURCE_ARN for proper format.
@@ -96,7 +104,7 @@ TEST_S3_KEY=""
 REGION="eu-west-3" # Default region
 TIMEOUT=100       # Default timeout in seconds
 MEMORY_SIZE=2048  # Default memory size in MB
-S3_RESOURCE_ARN="arn:aws:s3:::jlhc-hf-eolus/*"  # new parameter S3_RESOURCE_ARN
+S3_RESOURCE_ARN=""  
 
 # ----- Argument Parsing ----------------------------------------------------------------------------------
 while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do

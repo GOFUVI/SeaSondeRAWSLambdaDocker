@@ -124,12 +124,17 @@ cat > batch-policy.json <<EOF
 }
 EOF
 
-# ----- Create the IAM policy (ignore error if already exists) -----
-echo "Creating policy $POLICY_NAME ..."
-run_aws iam create-policy \
-  --policy-name "$POLICY_NAME" \
-  --policy-document file://batch-policy.json \
-  --profile "$PROFILE" 2>/dev/null || echo "Policy $POLICY_NAME already exists, continuing..."
+# ----- Create the IAM policy (salta la creación si ya existe) -----
+POLICY_ARN="arn:aws:iam::$ACCOUNT_ID:policy/$POLICY_NAME"
+if run_aws iam get-policy --policy-arn "$POLICY_ARN" --profile "$PROFILE" >/dev/null 2>&1; then
+  echo "Policy $POLICY_NAME already exists, skipping creation."
+else
+  echo "Creating policy $POLICY_NAME ..."
+  run_aws iam create-policy \
+    --policy-name "$POLICY_NAME" \
+    --policy-document file://batch-policy.json \
+    --profile "$PROFILE"
+fi
 
 # ----- Create the trust document for the role (batch-trust-policy.json) -----
 cat > batch-trust-policy.json <<EOF

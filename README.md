@@ -544,3 +544,240 @@ Run the script from the command line with the following options:
   Ensure that the destination URI starts with s3:// and that the IAM role associated with the AWS CLI profile has permission to upload files.
 
 ---
+
+## 4. Running a Batch Operations Job
+
+This section explains how to launch and confirm an S3 Batch Operations job to process files using the deployed Lambda function.
+
+### 4.1 Step-by-step
+
+#### Step 1: Get the Manifest File’s ETag
+
+Before creating the job, you must retrieve the ETag of the CSV manifest file you uploaded to S3. This value is required to correctly define the manifest’s location.
+
+Run the following command—adjust the bucket, key, and profile as needed:
+
+```bash
+aws s3api head-object --bucket my-bucket --key path/to/manifest.csv --profile myprofile
+```
+
+The output will look similar to this:
+
+```json
+{
+    "AcceptRanges": "bytes",
+    "LastModified": "2025-04-03T08:50:02+00:00",
+    "ContentLength": 790,
+    "ETag": "\"cbfd024288e24abb7cb36ef9cde2073f\"",
+    "ContentType": "text/csv",
+    "ServerSideEncryption": "AES256",
+    "Metadata": {}
+}
+```
+
+Copy the value of `"ETag"` (without the quotes), for example:  
+`cbfd024288e24abb7cb36ef9cde2073f`.
+
+---
+
+#### Step 2: Create the Batch Operations Role
+
+To allow the Batch Operations job to invoke the Lambda function and access S3 objects, you need to create a role with the proper permissions.
+
+**a) Create the Batch Operations Policy**
+
+Save the following content in a file named `batch-policy.json`:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObjectAcl",
+                "s3:GetObject",
+                "lambda:InvokeFunction",
+                "s3:RestoreObject",
+                "s3:GetObjectTagging",
+                "s3:ListBucket",
+                "s3:PutObjectTagging",
+                "s3:PutObjectAcl",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::my-bucket/*",
+                "arn:aws:lambda:eu-west-3:123456789012:function:process_lambda:$LATEST"
+            ]
+        }
+    ]
+}
+```
+
+Then create the policy with:
+
+```bash
+aws iam create-policy \
+  --policy-name batch-lambda-policy \
+  --policy-document file://batch-policy.json \
+  --profile myprofile
+```
+
+**b) Create the Batch Operations Role**
+
+Create a trust policy file (e.g., `lambda-policy.json`) with the following content:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "batchoperations.s3.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+Create the role by running:
+
+```bash
+aws iam create-role --role-name batch-lambda-role --assume-role-policy-document file://lambda-policy.json --profile myprofile
+```
+
+Attach the policy to the role:
+
+```bash
+aws iam attach-role-policy --role-name batch-lambda-role --policy-arn arn:aws:iam::123456789012:policy/batch-lambda-policy --profile myprofile
+```
+
+---
+
+#### Step 3: Create the S3 Batch Operations Job
+
+Use the `aws s3control create-job` command to define and launch the job. Adjust the values (account ID, ARNs, manifest location, etc.) according to your environment:
+
+```bash
+aws s3control create-job \
+  --account-id 123456789012 \
+  --operation '{"LambdaInvoke": {"FunctionArn": "arn:aws:lambda:eu-west-3:123456789012:function:process_lambda:$LATEST"}}' \
+  --manifest '{"Spec": {"Format": "S3BatchOperations_CSV_20180820", "Fields": ["Bucket", "Key"]}, "Location": {"ObjectArn": "arn:aws:s3:::my-bucket/path/to/manifest.csv", "ETag": "cbfd024288e24abb7cb36ef9cde2073f"}}' \
+  --priority 10 \
+  --role-arn arn:aws:iam::123456789012:role/batch-lambda-role \
+  --no-confirmation-required \
+  --report '{"Bucket": "arn:aws:s3:::my-bucket", "Prefix": "path/to", "Format": "Report_CSV_20180820", "Enabled": true, "ReportScope": "AllTasks"}' \
+  --description "Running S3 Batch Operations job on manifest.csv" \
+  --profile myprofile
+```
+
+The command will return a JSON output containing a `JobId`, for example:
+
+```json
+{
+    "JobId": "fake-job-id-1234"
+}
+```
+
+---
+
+#### Step 4: Confirm and Execute the Job
+
+To allow the job to run, you need to confirm it by updating its status. Use the `JobId` obtained above:
+
+```bash
+aws s3control update-job-status \
+  --account-id 123456789012 \
+  --job-id fake-job-id-1234 \
+  --requested-job-status Ready \
+  --profile myprofile
+```
+
+This command confirms the job, and it will begin executing according to the defined configuration.
+
+---
+
+This step-by-step guide covers obtaining the manifest ETag, setting up the necessary role and policy for Batch Operations, creating the job, and confirming its execution. Adjust the parameters as needed for your specific environment.
+
+
+### 4.2 Script: run_batch_job.sh
+
+The `run_batch_job.sh` script automates the process of preparing and launching an S3 Batch Operations job, streamlining the steps described in the previous section. Below is an overview of its functionalities and usage details.
+
+#### What the Script Does
+
+1. **Parameter Validation:**
+   - Ensures the manifest URI (provided with `-U`) is given and starts with `s3://`.
+   - Checks that an AWS CLI profile (provided with `-p`) is specified.
+
+2. **Extracting Manifest Details:**
+   - Parses the manifest URI to extract the bucket name and object key.
+   - If no report prefix is provided via `-P`, it automatically derives one from the manifest key.
+
+3. **Retrieving the Manifest ETag:**
+   - Uses the AWS CLI to obtain the ETag of the manifest file from S3. The ETag is essential for configuring the Batch Operations job.
+
+4. **IAM Policy and Role Setup:**
+   - Creates a JSON policy file (`batch-policy.json`) with the necessary permissions (e.g., S3 operations, Lambda invocation).
+   - Attempts to create the specified IAM policy (using `-y`) if it does not exist.
+   - Creates a trust policy file (`batch-trust-policy.json`) for the Batch Operations role.
+   - Creates the IAM role (using `-r`) if it does not already exist and waits for its propagation.
+   - Attaches the policy to the role.
+
+5. **Job Creation:**
+   - Determines the confirmation flag based on the `-c` option (either `yes` for `--confirmation-required` or `no` for `--no-confirmation-required`).
+   - Initiates the S3 Batch Operations job by invoking the specified Lambda function on the objects listed in the manifest.
+   - Logs the job creation output and displays the Job ID.
+
+6. **Cleanup:**
+   - Removes temporary files created during execution (such as `batch-policy.json` and `batch-trust-policy.json`).
+
+---
+
+#### Usage
+
+```bash
+./run_batch_job.sh [-h] -U manifest_uri [-g region] [-r role_name] [-y policy_name] [-l lambda_function] -p profile [-c yes|no] [-P report_prefix]
+```
+
+**Options:**
+
+- **-h:** Show help message with usage instructions.
+- **-U manifest_uri:** *(Required)* Full S3 URI of the manifest CSV (e.g., `s3://bucket/path/manifest.csv`).
+- **-g region:** AWS region to operate in *(default: `eu-west-3`)*.
+- **-r role_name:** Name of the IAM role to use or create for the Batch Operations job *(default: `batch-lambda-role`)*.
+- **-y policy_name:** Name of the IAM policy to use or create *(default: `batch-lambda-policy`)*.
+- **-l lambda_function:** Name of the Lambda function to invoke during the job *(default: `process_lambda`)*.
+- **-p profile:** *(Required)* AWS CLI profile to use for authentication.
+- **-c yes|no:** Specify if confirmation is required for the job:
+  - `yes` uses `--confirmation-required`.
+  - `no` uses `--no-confirmation-required`.
+  *(Default is `yes`.)*
+- **-P report_prefix:** Optional prefix for job reports. If omitted, the script derives a prefix from the manifest key.
+
+---
+
+#### Example
+
+```bash
+./run_batch_job.sh -U s3://jlhc-hf-eolus/tests/manifest.csv -g eu-west-3 -r batch-lambda-role -y batch-lambda-policy -l process_lambda -p setup -c no -P custom_prefix
+```
+
+---
+
+#### Additional Notes
+
+- **Logging:**  
+  Every AWS CLI command and its output are logged to `run_batch_job.log`, making it easier to troubleshoot issues.
+
+- **IAM Propagation:**  
+  The script includes a waiting mechanism to ensure that the IAM role is fully propagated before the job is created.
+
+- **Dynamic Configuration:**  
+  It dynamically retrieves the AWS account ID to construct ARNs for IAM policies, roles, and the Lambda function.
+
+This user manual provides a comprehensive guide to using the `run_batch_job.sh` script, enabling you to efficiently automate your S3 Batch Operations jobs.

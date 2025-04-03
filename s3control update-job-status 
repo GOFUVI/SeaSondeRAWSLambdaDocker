@@ -1,0 +1,47 @@
+{
+    "Job": {
+        "JobId": "5078d22c-bad2-4ba8-82e2-3c120c719a38",
+        "Description": "Ejecutando job S3 Batch Operations sobre manifest.csv",
+        "JobArn": "arn:aws:s3:eu-west-3:052699406551:job/5078d22c-bad2-4ba8-82e2-3c120c719a38",
+        "Status": "Suspended",
+        "Manifest": {
+            "Spec": {
+                "Format": "S3BatchOperations_CSV_20180820",
+                "Fields": [
+                    "Bucket",
+                    "Key"
+                ]
+            },
+            "Location": {
+                "ObjectArn": "arn:aws:s3:::jlhc-hf-eolus/tests/manifest.csv",
+                "ETag": "cbfd024288e24abb7cb36ef9cde2073f"
+            }
+        },
+        "Operation": {
+            "LambdaInvoke": {
+                "FunctionArn": "arn:aws:lambda:eu-west-3:052699406551:function:process_lambda:$LATEST"
+            }
+        },
+        "Priority": 10,
+        "ProgressSummary": {
+            "TotalNumberOfTasks": 10,
+            "NumberOfTasksSucceeded": 0,
+            "NumberOfTasksFailed": 0,
+            "Timers": {
+                "ElapsedTimeInActiveSeconds": 0
+            }
+        },
+        "FailureReasons": [],
+        "Report": {
+            "Bucket": "arn:aws:s3:::jlhc-hf-eolus",
+            "Format": "Report_CSV_20180820",
+            "Enabled": true,
+            "Prefix": "tests",
+            "ReportScope": "AllTasks"
+        },
+        "CreationTime": "2025-04-03T08:58:39.876000+00:00",
+        "RoleArn": "arn:aws:iam::052699406551:role/hf-eolus-s3-batch-operations",
+        "SuspendedDate": "2025-04-03T08:58:44.126000+00:00",
+        "SuspendedCause": "AwaitingConfirmation"
+    }
+}

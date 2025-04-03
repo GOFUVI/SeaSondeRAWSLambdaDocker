@@ -437,22 +437,10 @@ This command retrieves a JSON-formatted list of all objects under the specified 
 
 #### Step 2: Generate the CSV Manifest
 
-There are two common approaches to extract the object keys and format them into a CSV file:
-
-##### Option 1: Using `jq`
-
-If you have `jq` installed, run the following command to extract each object's key and create a CSV file where each line is formatted as `bucket,key`:
+This script requires jq. Run the following command to extract each object's key and create a CSV file where each line is formatted as `bucket,key`:
 
 ```bash
 jq -r '.Contents[] | "my-s3-bucket," + .Key' objects.json > manifest.csv
-```
-
-##### Option 2: Using `awk` (Without `jq`)
-
-If you prefer not to use `jq`, you can use `awk` along with the `aws s3 ls` command. This command recursively lists the objects and formats the output into a CSV file. Make sure that the fourth column contains the object key (this may vary depending on your AWS CLI output):
-
-```bash
-aws s3 ls s3://my-s3-bucket/path/to/folder/ --recursive --profile your_aws_profile | awk '{print "my-s3-bucket," $4}' > manifest.csv
 ```
 
 #### Step 3: Verify the Manifest
@@ -465,7 +453,7 @@ Ensure that each line of `manifest.csv` correctly lists a bucket and an object k
 
 ### 3.2 Script: prepare_manifest.sh
 
-This section provides detailed instructions for the prepare_manifest.sh script, which implements los steps described above to  generate a CSV manifest from an S3 folder. The script supports two methods for creating the manifest — using jq (preferred) or awk (fallback) — and offers options to display and optionally upload the manifest.
+This section provides detailed instructions for the prepare_manifest.sh script, which implements the steps described above to generate a CSV manifest from an S3 folder. The script supports jq for creating the manifest and offers options to display and optionally upload the manifest.
 
 ---
 
@@ -483,7 +471,7 @@ The prepare_manifest.sh script is designed to simplify the creation of a manifes
 
 Before running prepare_manifest.sh, ensure that you have:
 - **AWS CLI v2** installed and configured (e.g., using AWS SSO).
-- **jq** installed for JSON processing (optional; the script falls back to awk if not available).
+- **jq** installed for JSON processing.
 - The correct AWS permissions to list S3 objects and upload files if needed.
 
 ---
@@ -515,8 +503,7 @@ Run the script from the command line with the following options:
     Using the AWS CLI (with the provided AWS profile), the script lists the objects within the specified bucket and prefix and saves the output as objects.json.
 
 3. **Generate the CSV Manifest:**  
-    - If jq is available, it extracts the object keys and formats each line as "bucket,object_key".
-    - Otherwise, awk is used with the output of aws s3 ls to generate the CSV manifest.
+    jq is used to extract the object keys and format each line as "bucket,object_key".
 
 4. **Display Manifest Content:**  
     The content of manifest.csv is shown in the terminal for verification.
@@ -551,7 +538,7 @@ Run the script from the command line with the following options:
   Check your AWS CLI credentials and ensure that the bucket and prefix are correct.
 
 - **Manifest Generation Issues:**  
-  Verify that either jq or awk is installed and functioning. If using aws s3 ls, confirm that the expected output format matches the script’s assumptions.
+  Verify that jq is installed and functioning.
 
 - **Upload Failures:**  
   Ensure that the destination URI starts with s3:// and that the IAM role associated with the AWS CLI profile has permission to upload files.

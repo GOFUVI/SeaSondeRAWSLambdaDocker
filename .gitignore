@@ -3,3 +3,9 @@ aws_commands.log
 README.md
 .gitignore
 batch-policy.json
+batch-trust-policy.json
+run_batch_job.log
+.gitignore
+manifest.csv
+lambda.json
+lambda-policy.json

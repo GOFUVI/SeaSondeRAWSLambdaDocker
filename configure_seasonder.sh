@@ -266,27 +266,18 @@ cat > lambda.json <<EOF
 EOF
 
 # ----- Create or Update the IAM Role ---------------------------------------------------------------------
-if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE"; then
-    echo "IAM role $ROLE_NAME already exists, skipping creation."
-else
+
     echo "Creating IAM role..."
     run_aws iam create-role \
       --role-name "$ROLE_NAME" \
       --assume-role-policy-document file://lambda-policy.json \
       --profile "$AWS_PROFILE"
 
-    echo "Updating IAM role trust relationship..."
-    run_aws iam update-assume-role-policy \
-      --role-name "$ROLE_NAME" \
-      --policy-document file://lambda-policy.json \
-      --profile "$AWS_PROFILE"
+    
     sleep 30  # Wait to allow IAM role propagation
-fi
 
-EXISTING_POLICY_ARN=$(run_aws iam list-policies --profile "$AWS_PROFILE" --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
-if [ -n "$EXISTING_POLICY_ARN" ]; then
-    echo "IAM policy $POLICY_NAME already exists, skipping creation."
-else
+
+
     echo "Creating IAM policy..."
     POLICY_ARN=$(run_aws iam create-policy \
       --policy-name "$POLICY_NAME" \
@@ -297,7 +288,7 @@ else
       --role-name "$ROLE_NAME" \
       --policy-arn "$POLICY_ARN" \
       --profile "$AWS_PROFILE"
-fi
+
 
 # ----- Create the ECR Repository if It Does Not Exist --------------------------------------------------
 if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE"; then

@@ -3,7 +3,6 @@
 # Usage: run_batch_job.sh [-h] -U manifest_uri [-g region] [-r role_name] [-y policy_name] [-l lambda_function] -p profile [-c yes|no] [-P report_prefix]
 # Example: ./run_batch_job.sh -U s3://jlhc-hf-eolus/tests/manifest.csv -g eu-west-3 -r batch-lambda-role -y batch-lambda-policy -l process_lambda -p setup -c no -P custom_prefix
 
-set -e
 
 # ----- Setup logging ----------------------------------------------------------------------------------
 LOG_FILE="run_batch_job.log"
@@ -126,15 +125,14 @@ EOF
 
 # ----- Create the IAM policy (salta la creación si ya existe) -----
 POLICY_ARN="arn:aws:iam::$ACCOUNT_ID:policy/$POLICY_NAME"
-if run_aws iam get-policy --policy-arn "$POLICY_ARN" --profile "$PROFILE" >/dev/null 2>&1; then
-  echo "Policy $POLICY_NAME already exists, skipping creation."
-else
+
+
   echo "Creating policy $POLICY_NAME ..."
   run_aws iam create-policy \
     --policy-name "$POLICY_NAME" \
     --policy-document file://batch-policy.json \
     --profile "$PROFILE"
-fi
+
 
 # ----- Create the trust document for the role (batch-trust-policy.json) -----
 cat > batch-trust-policy.json <<EOF
@@ -153,16 +151,26 @@ cat > batch-trust-policy.json <<EOF
 EOF
 
 # ----- Create the batch operations role if it does not exist -----
-if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$PROFILE" >/dev/null 2>&1; then
-  echo "Role $ROLE_NAME already exists, skipping creation."
-else
-  echo "Creating role $ROLE_NAME ..."
-  run_aws iam create-role \
-    --role-name "$ROLE_NAME" \
-    --assume-role-policy-document file://batch-trust-policy.json \
-    --profile "$PROFILE"
-  sleep 10  # Allow propagation time
-fi
+
+    echo "Creating role $ROLE_NAME ..."
+    run_aws iam create-role \
+      --role-name "$ROLE_NAME" \
+      --assume-role-policy-document file://batch-trust-policy.json \
+      --profile "$PROFILE"
+    sleep 10  # Allow propagation time
+
+
+# Wait until the role is fully propagated
+echo "Waiting for role propagation..."
+for i in {1..10}; do
+  if run_aws iam get-role --role-name "$ROLE_NAME" --profile "$PROFILE" >/dev/null 2>&1; then
+    echo "Role $ROLE_NAME is available."
+    break
+  else
+    echo "Role $ROLE_NAME not yet available, waiting..."
+    sleep 5
+  fi
+done
 
 # ----- Attach the policy to the role -----
 echo "Attaching policy $POLICY_NAME to role $ROLE_NAME ..."
@@ -170,7 +178,7 @@ POLICY_ARN="arn:aws:iam::$ACCOUNT_ID:policy/$POLICY_NAME"
 run_aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn "$POLICY_ARN" \
-  --profile "$PROFILE"
+  --profile "$PROFILE" || true
 
 # Evaluate the value of CONFIRM_FLAG to define CONFIRMATION_ARG
 if [ "$CONFIRM_FLAG" = "no" ]; then

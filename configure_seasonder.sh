@@ -266,36 +266,50 @@ cat > lambda.json <<EOF
 EOF
 
 # ----- Create or Update the IAM Role ---------------------------------------------------------------------
-
-    echo "Creating IAM role..."
+echo "Checking IAM role..."
+role_check=$(run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" 2>&1)
+if echo "$role_check" | grep -q 'NoSuchEntity'; then
+    echo "IAM role not found. Creating IAM role..."
     run_aws iam create-role \
       --role-name "$ROLE_NAME" \
       --assume-role-policy-document file://lambda-policy.json \
       --profile "$AWS_PROFILE"
+    sleep 30  # Allow propagation
+else
+    echo "IAM role already exists."
+fi
 
-    
-    sleep 30  # Wait to allow IAM role propagation
-
-
-
-    echo "Creating IAM policy..."
+# ----- Create or Update the IAM Policy ------------------------------------------------------------------
+echo "Checking IAM policy..."
+policy_arn_expected="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/$POLICY_NAME"
+policy_check=$(run_aws iam get-policy --policy-arn "$policy_arn_expected" --profile "$AWS_PROFILE" 2>&1)
+if echo "$policy_check" | grep -q 'NoSuchEntity'; then
+    echo "IAM policy not found. Creating IAM policy..."
     POLICY_ARN=$(run_aws iam create-policy \
       --policy-name "$POLICY_NAME" \
       --policy-document file://lambda.json \
       --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
-    echo "Attaching policy to the role..."
-    run_aws iam attach-role-policy \
-      --role-name "$ROLE_NAME" \
-      --policy-arn "$POLICY_ARN" \
-      --profile "$AWS_PROFILE"
-
+else
+    echo "IAM policy already exists."
+    POLICY_ARN="$policy_arn_expected"
+fi
+echo "Attaching policy to the role..."
+run_aws iam attach-role-policy \
+  --role-name "$ROLE_NAME" \
+  --policy-arn "$POLICY_ARN" \
+  --profile "$AWS_PROFILE"
 
 # ----- Create the ECR Repository if It Does Not Exist --------------------------------------------------
-
-    echo "Creating ECR repository..."
+echo "Checking ECR repository..."
+repo_check=$(run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" 2>&1)
+if echo "$repo_check" | grep -q 'RepositoryNotFoundException'; then
+    echo "ECR repository not found. Creating repository..."
     run_aws ecr create-repository \
       --repository-name "$ECR_REPO" \
       --profile "$AWS_PROFILE"
+else
+    echo "ECR repository already exists."
+fi
 
 # ----- Log in to Amazon ECR -----------------------------------------------------------------------------
 echo "Logging in to ECR..."

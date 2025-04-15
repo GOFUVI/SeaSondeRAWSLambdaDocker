@@ -419,7 +419,7 @@ if [ -n "$TEST_S3_KEY" ]; then
 
 
       if [ -f response.json ]; then
-        result=$(jq -r '.results.resultCode' response.json)
+        result=$(jq -r '.results[0].resultCode' response.json)
         if [ "$result" = "Succeeded" ]; then
           echo "Lambda invocation succeeded: Succeeded"
         else

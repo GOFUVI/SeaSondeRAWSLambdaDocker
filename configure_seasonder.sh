@@ -93,6 +93,7 @@ OPTS_MUSIC_PARAMETERS="40,20,2,20"
 OPTS_DISCARD="no_solution,low_SNR"
 OPTS_PATTERN_PATH=""
 OPTS_S3_OUTPUT_PATH=""
+OPTS_RDATA_OUTPUT=FALSE
 
 # Additional parameters
 AWS_PROFILE="your_aws_profile"
@@ -133,6 +134,7 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
             echo "  TEST_S3_KEY=${TEST_S3_KEY}"
             echo "  REGION=${REGION}"
             echo "  S3_RESOURCE_ARN=${S3_RESOURCE_ARN}"
+            echo "  Save RData output=${OPTS_RDATA_OUTPUT}"
             exit 0
             ;;
         o) user_options+=("$OPTARG") ;;       # Collect key=value pairs for runtime overrides
@@ -185,6 +187,7 @@ for kv in "${user_options[@]}"; do
       SEASONSER_DISCARD) OPTS_DISCARD="$value" ;;
       SEASONDER_PATTERN_PATH) OPTS_PATTERN_PATH="$value" ;;
       SEASONDER_S3_OUTPUT_PATH) OPTS_S3_OUTPUT_PATH="$value" ;;
+      SEASONDER_RDATA_OUTPUT) OPTS_RDATA_OUTPUT="$value" ;;
       *) ;;
     esac
 done
@@ -392,7 +395,8 @@ until run_aws lambda update-function-configuration \
     \"SEASONDER_SMOOTH_NOISE_LEVEL\":\"$OPTS_SMOOTH_NOISE_LEVEL\",
     \"SEASONDER_MUSIC_PARAMETERS\":\"$OPTS_MUSIC_PARAMETERS\",
     \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
-    \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\"
+    \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\",
+    \"SEASONDER_RDATA_OUTPUT\":\"$OPTS_RDATA_OUTPUT\"
   }}" \
   --profile "$AWS_PROFILE"; do
     RETRY_COUNT=$((RETRY_COUNT+1))

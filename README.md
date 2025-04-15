@@ -355,7 +355,7 @@ Run the script from the command line with the following options:
 - **-R:** IAM role name (default: `process-lambda-role`).
 - **-P:** IAM policy name (default: `lambda-s3-logs`).
 - **-T:** S3 URI for the input antenna pattern file (must start with `s3://`).
-- **-S:** S3 URI for the output directory where results will be saved. This will create folders like `Radial_Metrics` and `CS_Objects`.
+- **-S:** S3 URI for the output directory where results will be saved. This will create folders like `Radial_Metrics` and optionally `CS_Objects`.
 - **-K:** *(Optional)* S3 URI for a spectral file used to test the Lambda function.
 - **-g:** AWS region (default: `eu-west-3`).
 - **-t:** Lambda function timeout in seconds (default: 100).

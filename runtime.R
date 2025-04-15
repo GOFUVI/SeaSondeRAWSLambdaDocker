@@ -137,6 +137,15 @@ outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     
     file.remove(outfile)
 
+
+
+output <- 
+      list(input_file = s3Key,                  
+           Radial_Metrics_path = radial_metrics_s3_path,
+           CS_object_path = ""
+      )
+
+  if(as.logical(Sys.getenv("SEASONDER_RDATA_OUTPUT"))){
     # CS object
     
     outfile_name <- paste0(basename(tools::file_path_sans_ext(file_to_read)),".RData")
@@ -160,14 +169,12 @@ outfile <- R.utils::gzip(outfile,overwrite = TRUE)
     x == 0 || stop(paste0("Error while writing to S3. Reason: ",readLines("/tmp/runtime/sys.log")))
     
     file.remove(outfile)
-   
- 
 
-    output <- 
-      list(input_file = s3Key,                  
-           CS_object_path = cs_object_s3_path,
-           Radial_Metrics_path = radial_metrics_s3_path
-      )
+    output$CS_object_path = cs_object_s3_path
+   
+  }
+
+    
     
     
     

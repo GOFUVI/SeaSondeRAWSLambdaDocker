@@ -330,7 +330,7 @@ docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 # ----- Create or Update the Lambda Function ------------------------------------------------------------
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 lambda_exists=$(run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE")
-if echo "$result" | grep -q 'ResourceNotFoundException'; then
+if echo "$lambda_exists" | grep -q 'ResourceNotFoundException'; then
     echo "Creating Lambda function with image URI: $IMAGE_URI"
     run_aws lambda create-function \
         --function-name "$LAMBDA_FUNCTION" \

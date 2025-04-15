@@ -100,8 +100,8 @@ cat("FORs computed\n")
     )
     
 
-cs <- SeaSondeR::seasonder_setSeaSondeRCS_MUSIC_options(cs, MUSIC_options)
-  cs <- SeaSondeR::seasonder_runMUSIC_in_FOR(cs)
+cs <- SeaSondeR::seasonder_setMUSICOptions(cs, MUSIC_options)
+  cs <- SeaSondeR::seasonder_runMUSICInFOR(cs)
     
   cat("MUSIC computed\n")
    

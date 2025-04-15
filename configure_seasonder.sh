@@ -57,7 +57,7 @@
 # ----------------------------------------------------------------------------
 
 # ----- Setup logging ===================================================================================
-LOG_FILE="aws_commands.log"
+LOG_FILE="configure_seasonder.log"
 rm -f "$LOG_FILE"  # Remove any existing log file to start fresh
 
 # ----- Initialize options array for runtime overrides --------------------------------------------------

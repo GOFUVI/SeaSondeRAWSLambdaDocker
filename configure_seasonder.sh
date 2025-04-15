@@ -291,14 +291,11 @@ EOF
 
 
 # ----- Create the ECR Repository if It Does Not Exist --------------------------------------------------
-if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE"; then
-    echo "ECR repository $ECR_REPO already exists, skipping creation."
-else
+
     echo "Creating ECR repository..."
     run_aws ecr create-repository \
       --repository-name "$ECR_REPO" \
       --profile "$AWS_PROFILE"
-fi
 
 # ----- Log in to Amazon ECR -----------------------------------------------------------------------------
 echo "Logging in to ECR..."

@@ -315,13 +315,8 @@ docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
 # ----- Create or Update the Lambda Function ------------------------------------------------------------
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
-if run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE"; then
-    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
-    run_aws lambda update-function-code \
-      --function-name "$LAMBDA_FUNCTION" \
-      --image-uri "$IMAGE_URI" \
-      --profile "$AWS_PROFILE"
-else
+lambda_exists=$(run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE")
+if echo "$result" | grep -q 'ResourceNotFoundException'; then
     echo "Creating Lambda function with image URI: $IMAGE_URI"
     run_aws lambda create-function \
         --function-name "$LAMBDA_FUNCTION" \
@@ -329,6 +324,13 @@ else
         --code ImageUri="$IMAGE_URI" \
         --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
         --profile "$AWS_PROFILE"
+else
+    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
+    run_aws lambda update-function-code \
+      --function-name "$LAMBDA_FUNCTION" \
+      --image-uri "$IMAGE_URI" \
+      --profile "$AWS_PROFILE"
+    
 fi
 
 # ----- Update Lambda Function Configuration ------------------------------------------------------------

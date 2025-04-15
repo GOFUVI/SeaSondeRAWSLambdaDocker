@@ -30,10 +30,10 @@ RUN yum -y install udunits2-devel
 
 RUN Rscript -e "install.packages(c('httr', 'jsonlite', 'logger', 'remotes','R.utils'), repos = 'https://packagemanager.rstudio.com/all/__linux__/centos7/latest')"
 RUN Rscript -e "remotes::install_github('mdneuzerling/lambdr')"
-
-COPY SeaSondeR.tar.gz ./SeaSondeR.tar.gz
-
-RUN R -e "remotes::install_local('SeaSondeR.tar.gz')"
+RUN git clone https://github.com/GOFUVI/SeaSondeR.git /tmp/SeaSondeR \
+  && Rscript -e "remotes::install_deps('/tmp/SeaSondeR', dependencies = TRUE)" \
+  && rm -rf /tmp/SeaSondeR
+RUN R -e "remotes::install_github('GOFUVI/SeaSondeR')"
 
 RUN mkdir /lambda
 COPY runtime.R /lambda

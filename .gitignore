@@ -9,3 +9,4 @@ run_batch_job.log
 manifest.csv
 lambda.json
 lambda-policy.json
+s3control update-job-status 

@@ -416,6 +416,18 @@ if [ -n "$TEST_S3_KEY" ]; then
       response.json \
       --cli-binary-format raw-in-base64-out \
       --profile "$AWS_PROFILE"
+
+
+      if [ -f response.json ]; then
+        result=$(jq -r '.results.resultCode' response.json)
+        if [ "$result" = "Succeeded" ]; then
+          echo "Lambda invocation succeeded: Succeeded"
+        else
+          echo "Lambda invocation failed: $result"
+        fi
+      else
+        echo "response.json file not found."
+      fi
 fi
 
 echo "Script completed. Check response.json for the invocation result."

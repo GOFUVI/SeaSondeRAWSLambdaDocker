@@ -94,6 +94,8 @@ OPTS_DISCARD="no_solution,low_SNR"
 OPTS_PATTERN_PATH=""
 OPTS_S3_OUTPUT_PATH=""
 OPTS_RDATA_OUTPUT=FALSE
+OPTS_DISCARD_NO_SOLUTION=TRUE
+OPTS_DISCARD_LOW_SNR=TRUE
 
 # Additional parameters
 AWS_PROFILE="your_aws_profile"
@@ -135,6 +137,8 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
             echo "  REGION=${REGION}"
             echo "  S3_RESOURCE_ARN=${S3_RESOURCE_ARN}"
             echo "  Save RData output=${OPTS_RDATA_OUTPUT}"
+            echo "  Discard no solution=${OPTS_DISCARD_NO_SOLUTION}"
+            echo "  Discard low SNR=${OPTS_DISCARD_LOW_SNR}"
             exit 0
             ;;
         o) user_options+=("$OPTARG") ;;       # Collect key=value pairs for runtime overrides
@@ -188,6 +192,8 @@ for kv in "${user_options[@]}"; do
       SEASONDER_PATTERN_PATH) OPTS_PATTERN_PATH="$value" ;;
       SEASONDER_S3_OUTPUT_PATH) OPTS_S3_OUTPUT_PATH="$value" ;;
       SEASONDER_RDATA_OUTPUT) OPTS_RDATA_OUTPUT="$value" ;;
+      SEASONDER_DISCARD_LOW_SNR) OPTS_DISCARD_LOW_SNR="$value" ;;
+      SEASONDER_DISCARD_NO_SOLUTION) OPTS_DISCARD_NO_SOLUTION="$value" ;;
       *) ;;
     esac
 done
@@ -395,7 +401,8 @@ until run_aws lambda update-function-configuration \
     \"SEASONDER_SMOOTH_NOISE_LEVEL\":\"$OPTS_SMOOTH_NOISE_LEVEL\",
     \"SEASONDER_MUSIC_PARAMETERS\":\"$OPTS_MUSIC_PARAMETERS\",
     \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
-    \"SEASONDER_S3_OUTPUT_PATH\":\"$OPTS_S3_OUTPUT_PATH\",
+    \"SEASONDER_DISCARD_LOW_SNR\":\"$OPTS_DISCARD_LOW_SNR\",
+    \"SEASONDER_DISCARD_NO_SOLUTION\":\"$OPTS_DISCARD_NO_SOLUTION\",
     \"SEASONDER_RDATA_OUTPUT\":\"$OPTS_RDATA_OUTPUT\"
   }}" \
   --profile "$AWS_PROFILE"; do

@@ -94,10 +94,10 @@ cat("FORs computed\n")
         PPMIN = as.numeric(Sys.getenv("SEASONDER_PPMIN")), 
         PWMAX = as.numeric(Sys.getenv("SEASONDER_PWMAX")), 
         smoothNoiseLevel = as.logical(Sys.getenv("SEASONDER_SMOOTH_NOISE_LEVEL")),
-        discard_no_solution= as.logical(Sys.getenv("SEASONDER_DISCARD_NO_SOLUTION")),
-        discard_low_SNR= as.logical(Sys.getenv("SEASONDER_DISCARD_LOW_SNR")),
+        discard_no_solution = as.logical(Sys.getenv("SEASONDER_DISCARD_NO_SOLUTION")),
+        discard_low_SNR = as.logical(Sys.getenv("SEASONDER_DISCARD_LOW_SNR")),
         doppler_interpolation = as.integer(Sys.getenv("SEASONDER_DOPPLER_INTERPOLATION")),
-        MUSIC_parameters = as.integer(Sys.getenv("SEASONDER_MUSIC_PARAMETERS"))
+        MUSIC_parameters = as.integer(strsplit(Sys.getenv("SEASONDER_MUSIC_PARAMETERS"), ",")[[1]])
     )
     
 

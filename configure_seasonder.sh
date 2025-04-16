@@ -95,7 +95,6 @@ OPTS_PPMIN=5
 OPTS_PWMAX=50
 OPTS_SMOOTH_NOISE_LEVEL=TRUE
 OPTS_MUSIC_PARAMETERS="40,20,2,20"
-OPTS_DISCARD="no_solution,low_SNR"
 OPTS_PATTERN_PATH=""
 OPTS_S3_OUTPUT_PATH=""
 OPTS_RDATA_OUTPUT=FALSE
@@ -134,7 +133,6 @@ while getopts "ho:A:E:L:R:P:T:S:K:g:t:m:u:" opt; do
             echo "  SEASONDER_PWMAX=${OPTS_PWMAX}"
             echo "  SEASONDER_SMOOTH_NOISE_LEVEL=${OPTS_SMOOTH_NOISE_LEVEL}"
             echo "  SEASONDER_MUSIC_PARAMETERS=${OPTS_MUSIC_PARAMETERS}"
-            echo "  SEASONDER_DISCARD=${OPTS_DISCARD}"
             echo "  SEASONDER_PATTERN_PATH=${OPTS_PATTERN_PATH}"
             echo "  SEASONDER_S3_OUTPUT_PATH=${OPTS_S3_OUTPUT_PATH}"
             echo "  TEST_S3_KEY=${TEST_S3_KEY}"
@@ -192,7 +190,6 @@ for kv in "${user_options[@]}"; do
       SEASONDER_PWMAX) OPTS_PWMAX="$value" ;;
       SEASONDER_SMOOTH_NOISE_LEVEL) OPTS_SMOOTH_NOISE_LEVEL="$value" ;;
       SEASONDER_MUSIC_PARAMETERS) OPTS_MUSIC_PARAMETERS="$value" ;;
-      SEASONSER_DISCARD) OPTS_DISCARD="$value" ;;
       SEASONDER_PATTERN_PATH) OPTS_PATTERN_PATH="$value" ;;
       SEASONDER_S3_OUTPUT_PATH) OPTS_S3_OUTPUT_PATH="$value" ;;
       SEASONDER_RDATA_OUTPUT) OPTS_RDATA_OUTPUT="$value" ;;
@@ -227,7 +224,6 @@ echo "  PPMIN=${OPTS_PPMIN}"
 echo "  PWMAX=${OPTS_PWMAX}"
 echo "  smoothNoiseLevel=${OPTS_SMOOTH_NOISE_LEVEL}"
 echo "  MUSIC_parameters=${OPTS_MUSIC_PARAMETERS}"
-echo "  discard=${OPTS_DISCARD}"
 
 # ----- Create Temporary JSON Files for IAM Configurations ---------------------------------------------
 # The following block creates JSON files used to set up IAM policies and roles.
@@ -403,7 +399,6 @@ until run_aws lambda update-function-configuration \
     \"SEASONDER_PWMAX\":\"$OPTS_PWMAX\",
     \"SEASONDER_SMOOTH_NOISE_LEVEL\":\"$OPTS_SMOOTH_NOISE_LEVEL\",
     \"SEASONDER_MUSIC_PARAMETERS\":\"$OPTS_MUSIC_PARAMETERS\",
-    \"SEASONSER_DISCARD\":\"$OPTS_DISCARD\",
     \"SEASONDER_DISCARD_LOW_SNR\":\"$OPTS_DISCARD_LOW_SNR\",
     \"SEASONDER_DISCARD_NO_SOLUTION\":\"$OPTS_DISCARD_NO_SOLUTION\",
     \"SEASONDER_RDATA_OUTPUT\":\"$OPTS_RDATA_OUTPUT\",

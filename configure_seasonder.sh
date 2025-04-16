@@ -414,6 +414,25 @@ until run_aws lambda update-function-configuration \
     sleep 10
 done
 
+# Wait until any ongoing update operations have completed before continuying
+MAX_WAIT=300
+WAITED=0
+while true; do
+    STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
+    echo "Current Lambda status: $STATUS"
+    if [ "$STATUS" == "Successful" ]; then
+      break
+    fi
+    
+    echo "Lambda not available yet ($STATUS). Waiting 10 seconds..."
+    sleep 10
+    WAITED=$((WAITED+10))
+    if [ $WAITED -ge $MAX_WAIT ]; then
+        echo "Timeout reached while waiting for Lambda function update to finish." >&2
+        exit 1
+    fi
+done
+
 # ----- Optionally Invoke the Lambda Function for Testing ----------------------------------------------
 if [ -n "$TEST_S3_KEY" ]; then
     # Parse the S3 bucket name and key from the provided TEST_S3_KEY

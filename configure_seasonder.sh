@@ -60,6 +60,11 @@
 LOG_FILE="configure_seasonder.log"
 rm -f "$LOG_FILE"  # Remove any existing log file to start fresh
 
+# Added logging function to capture echo outputs in log
+log() {
+    echo "$@" | tee -a "$LOG_FILE"
+}
+
 # ----- Initialize options array for runtime overrides --------------------------------------------------
 user_options=()
 
@@ -275,72 +280,72 @@ cat > lambda.json <<EOF
 EOF
 
 # ----- Create or Update the IAM Role ---------------------------------------------------------------------
-echo "Checking IAM role..."
+log "Checking IAM role..."
 role_check=$(run_aws iam get-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" 2>&1)
 if echo "$role_check" | grep -q 'NoSuchEntity'; then
-    echo "IAM role not found. Creating IAM role..."
+    log "IAM role not found. Creating IAM role..."
     run_aws iam create-role \
       --role-name "$ROLE_NAME" \
       --assume-role-policy-document file://lambda-policy.json \
       --profile "$AWS_PROFILE"
     sleep 10  # Allow propagation
 else
-    echo "IAM role already exists."
+    log "IAM role already exists."
 fi
 
 # ----- Create or Update the IAM Policy ------------------------------------------------------------------
-echo "Checking IAM policy..."
+log "Checking IAM policy..."
 policy_arn_expected="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/$POLICY_NAME"
 policy_check=$(run_aws iam get-policy --policy-arn "$policy_arn_expected" --profile "$AWS_PROFILE" 2>&1)
 if echo "$policy_check" | grep -q 'NoSuchEntity'; then
-    echo "IAM policy not found. Creating IAM policy..."
+    log "IAM policy not found. Creating IAM policy..."
     POLICY_ARN=$(run_aws iam create-policy \
       --policy-name "$POLICY_NAME" \
       --policy-document file://lambda.json \
       --profile "$AWS_PROFILE" | jq -r '.Policy.Arn')
 else
-    echo "IAM policy already exists."
+    log "IAM policy already exists."
     POLICY_ARN="$policy_arn_expected"
 fi
-echo "Attaching policy to the role..."
+log "Attaching policy to the role..."
 run_aws iam attach-role-policy \
   --role-name "$ROLE_NAME" \
   --policy-arn "$POLICY_ARN" \
   --profile "$AWS_PROFILE"
 
 # ----- Create the ECR Repository if It Does Not Exist --------------------------------------------------
-echo "Checking ECR repository..."
+log "Checking ECR repository..."
 repo_check=$(run_aws ecr describe-repositories --repository-names "$ECR_REPO" --profile "$AWS_PROFILE" 2>&1)
 if echo "$repo_check" | grep -q 'RepositoryNotFoundException'; then
-    echo "ECR repository not found. Creating repository..."
+    log "ECR repository not found. Creating repository..."
     run_aws ecr create-repository \
       --repository-name "$ECR_REPO" \
       --profile "$AWS_PROFILE"
 else
-    echo "ECR repository already exists."
+    log "ECR repository already exists."
 fi
 
 # ----- Log in to Amazon ECR -----------------------------------------------------------------------------
-echo "Logging in to ECR..."
+log "Logging in to ECR..."
 PASSWORD=$(run_aws ecr get-login-password --profile "$AWS_PROFILE" --region "$REGION")
 # Pipe the ECR login password to Docker to authenticate
 echo "$PASSWORD" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
 # ----- Build, Tag, and Push the Docker Image -----------------------------------------------------------
-echo "Building Docker image..."
+log "Building Docker image..."
 docker build -t "$ECR_REPO" .  # Build the Docker image using the Dockerfile in the current directory
 
-echo "Tagging Docker image..."
+log "Tagging Docker image..."
 docker tag "$ECR_REPO":latest "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
-echo "Pushing Docker image..."
+log "Pushing Docker image..."
 docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 
 # ----- Create or Update the Lambda Function ------------------------------------------------------------
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$ECR_REPO:latest"
 lambda_exists=$(run_aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE")
 if echo "$lambda_exists" | grep -q 'ResourceNotFoundException'; then
-    echo "Creating Lambda function with image URI: $IMAGE_URI"
+    log "Creating Lambda function with image URI: $IMAGE_URI"
     run_aws lambda create-function \
         --function-name "$LAMBDA_FUNCTION" \
         --package-type Image \
@@ -348,7 +353,7 @@ if echo "$lambda_exists" | grep -q 'ResourceNotFoundException'; then
         --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
         --profile "$AWS_PROFILE"
 else
-    echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
+    log "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
     run_aws lambda update-function-code \
       --function-name "$LAMBDA_FUNCTION" \
       --image-uri "$IMAGE_URI" \
@@ -356,22 +361,22 @@ else
 fi
 
 # ----- Update Lambda Function Configuration ------------------------------------------------------------
-echo "Updating Lambda function configuration..."
+log "Updating Lambda function configuration..."
 # Wait until any ongoing update operations have completed before modifying configuration
 MAX_WAIT=300
 WAITED=0
 while true; do
     STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
-    echo "Current Lambda status: $STATUS"
+    log "Current Lambda status: $STATUS"
     if [ "$STATUS" == "Successful" ]; then
       break
     fi
     
-    echo "Lambda not available yet ($STATUS). Waiting 10 seconds..."
+    log "Lambda not available yet ($STATUS). Waiting 10 seconds..."
     sleep 10
     WAITED=$((WAITED+10))
     if [ $WAITED -ge $MAX_WAIT ]; then
-        echo "Timeout reached while waiting for Lambda function update to finish." >&2
+        log "Timeout reached while waiting for Lambda function update to finish." >&2
         exit 1
     fi
 done
@@ -408,10 +413,10 @@ until run_aws lambda update-function-configuration \
   --profile "$AWS_PROFILE"; do
     RETRY_COUNT=$((RETRY_COUNT+1))
     if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
-      echo "Maximum retries reached. Failed to update Lambda function configuration."
+      log "Maximum retries reached. Failed to update Lambda function configuration."
       exit 1
     fi
-    echo "Configuration update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..."
+    log "Configuration update in progress. Retry $RETRY_COUNT/$MAX_RETRIES. Waiting 10 seconds..."
     sleep 10
 done
 
@@ -420,16 +425,16 @@ MAX_WAIT=300
 WAITED=0
 while true; do
     STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
-    echo "Current Lambda status: $STATUS"
+    log "Current Lambda status: $STATUS"
     if [ "$STATUS" == "Successful" ]; then
       break
     fi
     
-    echo "Lambda not available yet ($STATUS). Waiting 10 seconds..."
+    log "Lambda not available yet ($STATUS). Waiting 10 seconds..."
     sleep 10
     WAITED=$((WAITED+10))
     if [ $WAITED -ge $MAX_WAIT ]; then
-        echo "Timeout reached while waiting for Lambda function update to finish." >&2
+        log "Timeout reached while waiting for Lambda function update to finish." >&2
         exit 1
     fi
 done
@@ -439,7 +444,7 @@ if [ -n "$TEST_S3_KEY" ]; then
     # Parse the S3 bucket name and key from the provided TEST_S3_KEY
     BUCKET_NAME=$(echo "$TEST_S3_KEY" | awk -F'/' '{print $3}')
     KEY_PATH=$(echo "$TEST_S3_KEY" | cut -d'/' -f4-)
-    echo "Invoking Lambda function for testing..."
+    log "Invoking Lambda function for testing..."
     run_aws lambda invoke \
       --function-name "$LAMBDA_FUNCTION" \
       --payload "{\"invocationSchemaVersion\": \"1.0\", \"invocationId\": \"YXNkbGZqYWRmaiBhc2RmdW9hZHNmZGpmaGFzbGtkaGZza2RmaAo\", \"job\": {\"id\": \"f3cc4f60-61f6-4a2b-8a21-d07600c373ce\"}, \"tasks\": [{\"taskId\": \"dGFza2lkZ29lc2hlcmUF\", \"s3BucketArn\": \"arn:aws:s3:::${BUCKET_NAME}\", \"s3Key\": \"${KEY_PATH}\", \"s3VersionId\": \"1\"}]}" \
@@ -447,20 +452,34 @@ if [ -n "$TEST_S3_KEY" ]; then
       --cli-binary-format raw-in-base64-out \
       --profile "$AWS_PROFILE"
 
-
-      if [ -f response.json ]; then
+    if [ -f response.json ]; then
         result=$(jq -r '.results[0].resultCode' response.json)
         if [ "$result" = "Succeeded" ]; then
-          echo "Lambda invocation succeeded: Succeeded"
+          log "Lambda invocation succeeded: Succeeded"
+          metrics_path=$(jq -r '.results[0].resultString | fromjson | .Radial_Metrics_path' response.json)
+          filename=$(basename "$metrics_path")
+          aws s3 cp "$metrics_path" "./$filename"
+          if [[ "$filename" == *.gz ]]; then
+                gunzip -c "$filename" > "${filename%.gz}"
+                log "First 50 lines of decompressed file:"
+                head -n 50 "${filename%.gz}" | tee -a "$LOG_FILE"
+                log "Last 90 lines of decompressed file:"
+                tail -n 90 "${filename%.gz}" | tee -a "$LOG_FILE"
+          else
+                log "First 50 lines:"
+                head -n 50 "$filename" | tee -a "$LOG_FILE"
+                log "Last 90 lines:"
+                tail -n 90 "$filename" | tee -a "$LOG_FILE"
+          fi
         else
-          echo "Lambda invocation failed: $result"
+          log "Lambda invocation failed: $result"
         fi
-      else
-        echo "response.json file not found."
-      fi
+    else
+        log "response.json file not found."
+    fi
 fi
 
-echo "Script completed. Check response.json for the invocation result."
+log "Script completed. Check response.json for the invocation result."
 
 # ----- Clean Up Temporary Files --------------------------------------------------------------------------
 rm lambda-policy.json lambda.json

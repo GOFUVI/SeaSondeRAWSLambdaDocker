@@ -347,14 +347,14 @@ if echo "$lambda_exists" | grep -q 'ResourceNotFoundException'; then
         --code ImageUri="$IMAGE_URI" \
         --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/$ROLE_NAME" \
         --profile "$AWS_PROFILE"
-    sleep 30  # Allow propagation
+    sleep 60  # Allow propagation
 else
     echo "Lambda function $LAMBDA_FUNCTION already exists, updating the image..."
     run_aws lambda update-function-code \
       --function-name "$LAMBDA_FUNCTION" \
       --image-uri "$IMAGE_URI" \
       --profile "$AWS_PROFILE"
-    
+    sleep 60
 fi
 
 # ----- Update Lambda Function Configuration ------------------------------------------------------------
@@ -364,6 +364,7 @@ MAX_WAIT=300
 WAITED=0
 while true; do
     STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
+    echo "Current Lambda status: $STATUS"
     if [ "$STATUS" != "InProgress" ] && [ "$STATUS" != "Pending" ]; then
       break
     fi

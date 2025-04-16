@@ -365,7 +365,7 @@ WAITED=0
 while true; do
     STATUS=$(aws lambda get-function --function-name "$LAMBDA_FUNCTION" --profile "$AWS_PROFILE" --query "Configuration.LastUpdateStatus" --output text)
     echo "Current Lambda status: $STATUS"
-    if [ "$STATUS" != "InProgress" ] && [ "$STATUS" != "Pending" ]; then
+    if [ "$STATUS" == "Successful" ]; then
       break
     fi
     

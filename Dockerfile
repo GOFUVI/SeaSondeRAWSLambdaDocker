@@ -35,7 +35,7 @@ RUN git clone https://github.com/GOFUVI/SeaSondeR.git /tmp/SeaSondeR \
   && git checkout tags/0.2.6 \
   && Rscript -e "remotes::install_deps('/tmp/SeaSondeR', dependencies = TRUE)" \
   && rm -rf /tmp/SeaSondeR
-RUN R -e "remotes::install_github('GOFUVI/SeaSondeR', ref = '0.2.7')"
+RUN R -e "remotes::install_github('GOFUVI/SeaSondeR', ref = 'v0.2.7')"
 
 RUN mkdir /lambda
 COPY runtime.R /lambda

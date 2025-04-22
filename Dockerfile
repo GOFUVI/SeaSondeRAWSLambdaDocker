@@ -10,7 +10,7 @@ RUN ln -s /usr/local/aws-cli/v2/current/bin/aws \
         /usr/local/bin/aws_completer
 
 ENV R_VERSION=4.4.3
-ENV SEASONDER_VERSION=v0.2.7
+ENV SEASONDER_VERSION=v0.2.8
 
 RUN yum -y install wget git tar
 

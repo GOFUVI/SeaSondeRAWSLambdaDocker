@@ -452,7 +452,7 @@ if [ -n "$TEST_S3_KEY" ]; then
           log "Lambda invocation succeeded: Succeeded"
           metrics_path=$(jq -r '.results[0].resultString | fromjson | .Radial_Metrics_path' response.json)
           filename=$(basename "$metrics_path")
-          aws s3 cp "$metrics_path" "./$filename"
+          run_aws s3 cp "$metrics_path" "./$filename" --profile "$AWS_PROFILE"
           if [[ "$filename" == *.gz ]]; then
                 gunzip -c "$filename" > "${filename%.gz}"
                 log "First 50 lines of decompressed file:"

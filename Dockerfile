@@ -10,7 +10,7 @@ RUN ln -s /usr/local/aws-cli/v2/current/bin/aws \
         /usr/local/bin/aws_completer
 
 ENV R_VERSION=4.4.3
-
+ENV SEASONDER_VERSION=v0.2.7
 
 RUN yum -y install wget git tar
 
@@ -32,10 +32,10 @@ RUN Rscript -e "install.packages(c('httr', 'jsonlite', 'logger', 'remotes','R.ut
 RUN Rscript -e "remotes::install_github('mdneuzerling/lambdr')"
 RUN git clone https://github.com/GOFUVI/SeaSondeR.git /tmp/SeaSondeR \
   && cd /tmp/SeaSondeR \
-  && git checkout tags/v0.2.7 \
+  && git checkout tags/${SEASONDER_VERSION} \
   && Rscript -e "remotes::install_deps('/tmp/SeaSondeR', dependencies = TRUE)" \
-  && rm -rf /tmp/SeaSondeR
-RUN R -e "remotes::install_github('GOFUVI/SeaSondeR', ref = 'v0.2.7')"
+  && rm -rf /tmp/SeaSondeR \
+  && Rscript -e "remotes::install_github('GOFUVI/SeaSondeR', ref = '${SEASONDER_VERSION}')"
 
 RUN mkdir /lambda
 COPY runtime.R /lambda

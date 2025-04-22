@@ -32,7 +32,7 @@ RUN Rscript -e "install.packages(c('httr', 'jsonlite', 'logger', 'remotes','R.ut
 RUN Rscript -e "remotes::install_github('mdneuzerling/lambdr')"
 RUN git clone https://github.com/GOFUVI/SeaSondeR.git /tmp/SeaSondeR \
   && cd /tmp/SeaSondeR \
-  && git checkout tags/0.2.6 \
+  && git checkout tags/v0.2.7 \
   && Rscript -e "remotes::install_deps('/tmp/SeaSondeR', dependencies = TRUE)" \
   && rm -rf /tmp/SeaSondeR
 RUN R -e "remotes::install_github('GOFUVI/SeaSondeR', ref = 'v0.2.7')"

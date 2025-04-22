@@ -10,7 +10,7 @@ RUN ln -s /usr/local/aws-cli/v2/current/bin/aws \
         /usr/local/bin/aws_completer
 
 ENV R_VERSION=4.4.3
-ENV SEASONDER_VERSION=v0.2.8
+
 
 RUN yum -y install wget git tar
 
@@ -30,6 +30,8 @@ RUN yum -y install udunits2-devel
 
 RUN Rscript -e "install.packages(c('httr', 'jsonlite', 'logger', 'remotes','R.utils'), repos = 'https://packagemanager.rstudio.com/all/__linux__/centos7/latest')"
 RUN Rscript -e "remotes::install_github('mdneuzerling/lambdr')"
+
+ENV SEASONDER_VERSION=v0.2.8
 RUN Rscript -e "remotes::install_github('GOFUVI/SeaSondeR', ref = '${SEASONDER_VERSION}', dependencies = TRUE)" 
 
 RUN mkdir /lambda

@@ -199,7 +199,7 @@ JOB_OUTPUT=$(run_aws s3control create-job \
   --report "{\"Bucket\": \"arn:aws:s3:::$BUCKET\", \"Prefix\": \"$REPORT_PREFIX\", \"Format\": \"Report_CSV_20180820\", \"Enabled\": true, \"ReportScope\": \"AllTasks\"}" \
   --description "Running S3 Batch Operations job on manifest.csv" \
   --profile "$PROFILE" \
-  --abort-config '{"MinNumberOfTasks":1,"FailurePercentage":100}')
+  --abort-config "{\"MinNumberOfTasks\":1,\"FailurePercentage\":100}")
   
 JOB_ID=$(echo "$JOB_OUTPUT" | jq -r '.JobId')
 echo "Job created. JobId: $JOB_ID"

@@ -189,7 +189,7 @@ fi
 
 # ----- Create the S3 Batch Operations job -----
 echo "Creating the S3 Batch Operations job..."
-JOB_OUTPUT=$(run_aws iot create-job \
+JOB_OUTPUT=$(run_aws s3control create-job \
   --account-id "$ACCOUNT_ID" \
   --operation "{\"LambdaInvoke\": {\"FunctionArn\": \"arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$LAMBDA_FUNCTION:\$LATEST\"}}" \
   --manifest "{\"Spec\": {\"Format\": \"S3BatchOperations_CSV_20180820\", \"Fields\": [\"Bucket\", \"Key\"]}, \"Location\": {\"ObjectArn\": \"$MANIFEST_ARN\", \"ETag\": \"$ETAG\"}}" \

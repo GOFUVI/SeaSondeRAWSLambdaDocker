@@ -189,29 +189,56 @@ fi
 
 # ----- Create the S3 Batch Operations job -----
 echo "Creating the S3 Batch Operations job..."
-JOB_OUTPUT=$(run_aws s3control create-job \
-  --account-id "$ACCOUNT_ID" \
-  --operation "{\"LambdaInvoke\": {\"FunctionArn\": \"arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$LAMBDA_FUNCTION:\$LATEST\"}}" \
-  --manifest "{\"Spec\": {\"Format\": \"S3BatchOperations_CSV_20180820\", \"Fields\": [\"Bucket\", \"Key\"]}, \"Location\": {\"ObjectArn\": \"$MANIFEST_ARN\", \"ETag\": \"$ETAG\"}}" \
-  --priority 10 \
-  --role-arn "arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME" \
-  $CONFIRMATION_ARG \
-  --report "{\"Bucket\": \"arn:aws:s3:::$BUCKET\", \"Prefix\": \"$REPORT_PREFIX\", \"Format\": \"Report_CSV_20180820\", \"Enabled\": true, \"ReportScope\": \"AllTasks\"}" \
-  --description "Running S3 Batch Operations job on manifest.csv" \
-  --profile "$PROFILE" \
-  --abort-config "{ \
-            \"criteriaList\": [ \
-              { \
-                \"failureType\":       \"ALL\", \
-                \"action\":            \"CANCEL\", \
-                \"thresholdPercentage\": 100.0, \
-                \"minNumberOfExecutedThings\": 1 \
-              } \
-            ] \
-          }")
-  
+# Determine confirmation requirement for JSON
+if [ "$CONFIRM_FLAG" = "no" ]; then
+  CONFIRM_REQUIRED_JSON=false
+else
+  CONFIRM_REQUIRED_JSON=true
+fi
+# Build job.json for AWS CLI
+cat > job.json <<EOF
+{
+  "AccountId": "$ACCOUNT_ID",
+  "Operation": {
+    "LambdaInvoke": {
+      "FunctionArn": "arn:aws:lambda:$REGION:$ACCOUNT_ID:function:$LAMBDA_FUNCTION:\$LATEST"
+    }
+  },
+  "Manifest": {
+    "Spec": {
+      "Format": "S3BatchOperations_CSV_20180820",
+      "Fields": ["Bucket","Key"]
+    },
+    "Location": {
+      "ObjectArn": "$MANIFEST_ARN",
+      "ETag": "$ETAG"
+    }
+  },
+  "Priority": 10,
+  "RoleArn": "arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME",
+  "Report": {
+    "Bucket": "arn:aws:s3:::$BUCKET",
+    "Prefix": "$REPORT_PREFIX",
+    "Format": "Report_CSV_20180820",
+    "Enabled": true,
+    "ReportScope": "AllTasks"
+  },
+  "Description": "Running S3 Batch Operations job on manifest.csv",
+  "ConfirmationRequired": $CONFIRM_REQUIRED_JSON,
+  "AbortConfig": {
+    "MinNumberOfTasks": 1,
+    "FailurePercentage": 100
+  }
+}
+EOF
+
+JOB_OUTPUT=$(run_aws s3control create-job --cli-input-json file://job.json --profile "$PROFILE")
+
 JOB_ID=$(echo "$JOB_OUTPUT" | jq -r '.JobId')
 echo "Job created. JobId: $JOB_ID"
+
+# Cleanup generated job.json
+rm job.json
 
 # ----- Cleanup temporary files -----
 rm batch-policy.json batch-trust-policy.json

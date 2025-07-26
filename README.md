@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/950599451.svg)](https://doi.org/10.5281/zenodo.16453045)
+
 # Batch Processing of SeaSonde HF-Radar Spectra Files on AWS with SeaSondeR R Package
 
 ## Table of Contents

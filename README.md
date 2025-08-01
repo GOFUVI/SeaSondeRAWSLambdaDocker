@@ -788,12 +788,23 @@ This user manual provides a comprehensive guide to using the `run_batch_job.sh` 
 
 ## Acknowledgements
 
+This work has been funded by the HF-EOLUS project (TED2021-129551B-I00), financed by MICIU/AEI /10.13039/501100011033 and by the European Union NextGenerationEU/PRTR - BDNS 598843 - Component 17 - Investment I3. Members of the Marine Research Centre (CIM) of the University of Vigo have participated in the development of this repository.
+
 This Docker image utilizes the "lambdr" package by David Neuzerling.
 
 Neuzerling D (2025). lambdr: Create a Runtime for Serving Containerised R Functions on 'AWS Lambda'. R package version 1.2.6, https://github.com/mdneuzerling/lambdr, https://lambdr.mdneuzerling.com/.
 
-This work has been funded by the HF-EOLUS project (TED2021-129551B-I00), financed by MICIU/AEI /10.13039/501100011033 and by the European Union NextGenerationEU/PRTR - BDNS 598843 - Component 17 - Investment I3.
-
 ## Disclaimer
 
 This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+---
+<p align="center">
+  <img src="logos/EN_Funded_by_the_European_Union_RGB_POS.png" alt="Funded by the European Union" height="80"/>
+  <img src="logos/LOGO%20COLOR.png" alt="Logo Color" height="80"/>
+  <img src="logos/logo_aei.png" alt="AEI Logo" height="80"/>
+  <img src="logos/MCIU_header.svg" alt="MCIU Header" height="80"/>
+  <img src ="logos/Logotipo_CIM_original.png" alt="CIM logo" height="80"/>
+
+  
+</p>

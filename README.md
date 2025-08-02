@@ -29,6 +29,8 @@ Welcome to our repository for batch processing HF-Radar spectra files using the 
 - **S3 (Simple Storage Service):** Scalable storage for data and files.
 - **IAM (Identity and Access Management):** Managing permissions for AWS resources.
 
+> **Warning:** Running processes on AWS may incur costs. We do not take responsibility for any charges arising from the use of this software.
+
 #### Prerequisites
 
 Before you begin, ensure you have:

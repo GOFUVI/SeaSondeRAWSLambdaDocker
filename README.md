@@ -800,11 +800,24 @@ This software is provided "as is", without warranty of any kind, express or impl
 
 ---
 <p align="center">
-  <img src="logos/EN_Funded_by_the_European_Union_RGB_POS.png" alt="Funded by the European Union" height="80"/>
-  <img src="logos/LOGO%20COLOR.png" alt="Logo Color" height="80"/>
-  <img src="logos/logo_aei.png" alt="AEI Logo" height="80"/>
-  <img src="logos/MCIU_header.svg" alt="MCIU Header" height="80"/>
-  <img src ="logos/Logotipo_CIM_original.png" alt="CIM logo" height="80"/>
+  <a href="https://next-generation-eu.europa.eu/">
+    <img src="logos/EN_Funded_by_the_European_Union_RGB_POS.png" alt="Funded by the European Union" height="80"/>
+  </a>
+  <a href="https://planderecuperacion.gob.es/">
+    <img src="logos/LOGO%20COLOR.png" alt="Logo Color" height="80"/>
+  </a>
+  <a href="https://www.aei.gob.es/">
+    <img src="logos/logo_aei.png" alt="AEI Logo" height="80"/>
+  </a>
+  <a href="https://www.ciencia.gob.es/">
+    <img src="logos/MCIU_header.svg" alt="MCIU Header" height="80"/>
+  </a>
+  <a href="https://cim.uvigo.gal">
+    <img src="logos/Logotipo_CIM_original.png" alt="CIM logo" height="80"/>
+  </a>
+  <a href="https://www.iim.csic.es/">
+    <img src="logos/IIM.svg" alt="IIM logo" height="80"/>
+  </a>
 
   
 </p>
